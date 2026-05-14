@@ -1,0 +1,53 @@
+name: Build Deploy Zip
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-zip:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore PSScriptWebApp.csproj
+
+      - name: Build
+        run: dotnet build PSScriptWebApp.csproj -c Release --no-restore
+
+      - name: Publish
+        run: dotnet publish PSScriptWebApp.csproj -c Release --no-build -o out
+
+      - name: Create zip and checksum
+        shell: pwsh
+        run: |
+          $shortSha = "${{ github.sha }}".Substring(0, 8)
+          $zipName = "PSScriptWebApp-$shortSha.zip"
+
+          Compress-Archive -Path "out\*" -DestinationPath $zipName -Force
+
+          $hash = (Get-FileHash $zipName -Algorithm SHA256).Hash
+          "$hash *$zipName" | Out-File "$zipName.sha256" -Encoding ascii
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp-zip
+          path: |
+            PSScriptWebApp-*.zip
+            PSScriptWebApp-*.zip.sha256
+          retention-days: 14

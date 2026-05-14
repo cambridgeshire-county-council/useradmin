@@ -1,0 +1,18 @@
+@model List<PowerShellScript>
+@{
+    ViewData["Title"] = "PowerShell Scripts";
+}
+
+<div class="container">
+    <h1>Available PowerShell Scripts</h1>
+    
+    <div class="list-group mt-4">
+        @foreach (var script in Model)
+        {
+            <a href="@Url.Action("Details", "Scripts", new { name = script.Name })" class="list-group-item list-group-item-action">
+                <h5 class="mb-1">@script.Name</h5>
+                <small>Parameters: @script.Parameters.Count</small>
+            </a>
+        }
+    </div>
+</div>

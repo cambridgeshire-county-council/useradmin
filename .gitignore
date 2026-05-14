@@ -1,0 +1,54 @@
+# PowerShell
+*.ps1xml
+*.psd1
+*.psm1
+*.psc1
+
+# Build results
+bin/
+obj/
+out/
+publish/
+PSScriptWebApp-publish.zip
+
+# Visual Studio
+.vs/
+*.sln.iml
+*.user
+*.suo
+*.sln.docstates
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+packages/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+tmp/
+temp/
+*.tmp
+
+# Secrets
+.env
+.env.local
+secrets.json
+
+# Web App specific
+wwwroot/node_modules/
+dist/

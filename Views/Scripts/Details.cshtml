@@ -1,0 +1,109 @@
+@model PowerShellScript
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<div class="container">
+    <h1>@Model.Name</h1>
+    
+    <div class="card mt-4">
+        <div class="card-body">
+            <form id="scriptForm">
+                @foreach (var param in Model.Parameters)
+                {
+                    <div class="mb-3">
+                        <label for="@param.Name" class="form-label">
+                            @(param.DisplayName ?? param.Name)
+                            @if (param.IsMandatory)
+                            {
+                                <span class="text-danger">*</span>
+                            }
+                        </label>
+                        <input type="text" class="form-control" id="@param.Name" name="@param.Name" required="@param.IsMandatory" />
+                        @if (!string.IsNullOrEmpty(param.HelpMessage))
+                        {
+                            <div class="form-text">@param.HelpMessage</div>
+                        }
+                    </div>
+                }
+                
+                <button type="submit" id="runBtn" class="btn btn-primary">Run Script</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="loadingIndicator" class="mt-4" style="display: none;">
+        <div class="d-flex align-items-center gap-2 text-secondary">
+            <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+            <span>Running script&hellip;</span>
+        </div>
+    </div>
+    
+    <div id="output" class="mt-4" style="display: none;">
+        <div class="card">
+            <div class="card-header">
+                Output
+            </div>
+            <div class="card-body">
+                <pre id="outputText" style="white-space: pre-wrap; word-wrap: break-word;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('scriptForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const parameters = {};
+            const inputs = form.querySelectorAll('input');
+            const runBtn = document.getElementById('runBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+
+            // Disable form controls and show loading indicator
+            inputs.forEach(input => input.disabled = true);
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Running…';
+            loadingIndicator.style.display = 'block';
+            document.getElementById('output').style.display = 'none';
+
+            // Collect form data
+            for (const input of inputs) {
+                parameters[input.name] = input.value;
+            }
+            
+            try {
+                const response = await fetch('@Url.Action("Execute", "Scripts", new { name = Model.Name })', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(parameters)
+                });
+                
+                const result = await response.json();
+                const outputDiv = document.getElementById('output');
+                const outputText = document.getElementById('outputText');
+                
+                outputDiv.style.display = 'block';
+                if (result.success) {
+                    outputText.className = 'text-success';
+                    outputText.textContent = result.output;
+                } else {
+                    outputText.className = 'text-danger';
+                    outputText.textContent = result.error;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                // Re-enable form controls and hide loading indicator
+                inputs.forEach(input => input.disabled = false);
+                runBtn.disabled = false;
+                runBtn.innerHTML = 'Run Script';
+                loadingIndicator.style.display = 'none';
+            }
+        });
+    </script>
+}
