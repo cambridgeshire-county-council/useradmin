@@ -8,8 +8,6 @@
 bin/
 obj/
 out/
-publish/
-PSScriptWebApp-publish.zip
 
 # Visual Studio
 .vs/
