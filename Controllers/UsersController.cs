@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using PSScriptWebApp.Models;
 using PSScriptWebApp.Services;
@@ -8,6 +9,10 @@ namespace PSScriptWebApp.Controllers;
 public class UsersController : Controller
 {
     private readonly IPowerShellService _powerShellService;
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public UsersController(IPowerShellService powerShellService)
     {
@@ -53,6 +58,96 @@ public class UsersController : Controller
         return View(model);
     }
 
+    [HttpGet]
+    public IActionResult Search()
+    {
+        return View(new UserSearchViewModel());
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Search(UserSearchViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var executionResult = await _powerShellService.ExecuteScriptAsync(
+            "Search",
+            new Dictionary<string, string>
+            {
+                ["search"] = model.Search
+            });
+
+        if (!executionResult.Success)
+        {
+            model.Error = string.IsNullOrWhiteSpace(executionResult.Error)
+                ? "Search script failed."
+                : executionResult.Error;
+            return View(model);
+        }
+
+        try
+        {
+            model.Results = ParseListOutput<UserSearchResultItem>(executionResult.Output);
+        }
+        catch (JsonException)
+        {
+            model.Error = "Search results could not be parsed.";
+        }
+
+        return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Details(string samAccountName)
+    {
+        if (string.IsNullOrWhiteSpace(samAccountName))
+        {
+            return BadRequest();
+        }
+
+        var executionResult = await _powerShellService.ExecuteScriptAsync(
+            "GetUser",
+            new Dictionary<string, string>
+            {
+                ["SamAccountName"] = samAccountName
+            });
+
+        if (!executionResult.Success)
+        {
+            return View(new UserDetailsViewModel
+            {
+                SamAccountName = samAccountName,
+                Error = string.IsNullOrWhiteSpace(executionResult.Error)
+                    ? "GetUser script failed."
+                    : executionResult.Error
+            });
+        }
+
+        try
+        {
+            var model = JsonSerializer.Deserialize<UserDetailsViewModel>(executionResult.Output, JsonOptions)
+                ?? new UserDetailsViewModel();
+
+            if (string.IsNullOrWhiteSpace(model.SamAccountName))
+            {
+                model.SamAccountName = samAccountName;
+            }
+
+            return View(model);
+        }
+        catch (JsonException)
+        {
+            return View(new UserDetailsViewModel
+            {
+                SamAccountName = samAccountName,
+                Error = "User details could not be parsed."
+            });
+        }
+    }
+
     private static string? SanitizeOutput(string? output)
     {
         if (string.IsNullOrWhiteSpace(output))
@@ -64,5 +159,27 @@ public class UsersController : Controller
             output,
             @"(?im)^Generated Password:\s*.+$",
             "Generated Password: [hidden]");
+    }
+
+    private static List<T> ParseListOutput<T>(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return new List<T>();
+        }
+
+        using var document = JsonDocument.Parse(output);
+        if (document.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            return JsonSerializer.Deserialize<List<T>>(output, JsonOptions) ?? new List<T>();
+        }
+
+        if (document.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            var item = JsonSerializer.Deserialize<T>(output, JsonOptions);
+            return item is null ? new List<T>() : new List<T> { item };
+        }
+
+        return new List<T>();
     }
 }

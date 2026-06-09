@@ -1,0 +1,80 @@
+@model UserSearchViewModel
+@{
+    ViewData["Title"] = "User Search";
+}
+
+<div class="container">
+    <h1>User Search</h1>
+    <p class="text-muted">Search Active Directory users and open a detailed profile.</p>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <form asp-controller="Users" asp-action="Search" method="post" class="row g-3">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                <div class="col-md-9">
+                    <label asp-for="Search" class="form-label"></label>
+                    <input asp-for="Search" class="form-control" placeholder="Enter full or partial name" />
+                    <span asp-validation-for="Search" class="text-danger"></span>
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Search</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="alert alert-danger mt-4" role="alert">@Model.Error</div>
+    }
+
+    @if (Model.Results.Count > 0)
+    {
+        <div class="card mt-4">
+            <div class="card-header">Results (@Model.Results.Count)</div>
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>SAM Account</th>
+                            <th>UPN</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var user in Model.Results)
+                    {
+                        <tr>
+                            <td>@user.Name</td>
+                            <td>@user.SamAccountName</td>
+                            <td>@user.UserPrincipalName</td>
+                            <td>@(user.Enabled.HasValue ? (user.Enabled.Value ? "Enabled" : "Disabled") : "Unknown")</td>
+                            <td>
+                                <a asp-controller="Users"
+                                   asp-action="Details"
+                                   asp-route-samAccountName="@user.SamAccountName"
+                                   class="btn btn-sm btn-outline-primary">
+                                    View Details
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.Search) && string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="alert alert-secondary mt-4" role="alert">No users found for "@Model.Search".</div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

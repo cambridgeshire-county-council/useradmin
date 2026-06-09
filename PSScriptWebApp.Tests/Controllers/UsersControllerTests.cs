@@ -93,6 +93,64 @@ public class UsersControllerTests
         Assert.Equal("The NewUser script failed. Check script output for details.", returnedModel.ExecutionError);
     }
 
+    [Fact]
+    public async Task Search_Post_ValidModel_ParsesResults()
+    {
+        var stubService = new StubPowerShellService
+        {
+            ExecutionResults = new Dictionary<string, ScriptExecutionResult>
+            {
+                ["Search"] = new ScriptExecutionResult
+                {
+                    Success = true,
+                    Output = "[{\"name\":\"Jane Smith\",\"samAccountName\":\"JS123\",\"userPrincipalName\":\"jane.smith@example.com\",\"enabled\":true}]"
+                }
+            }
+        };
+
+        var controller = new UsersController(stubService);
+        var model = new UserSearchViewModel { Search = "Jane" };
+
+        var result = await controller.Search(model);
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var returnedModel = Assert.IsType<UserSearchViewModel>(viewResult.Model);
+
+        Assert.Single(returnedModel.Results);
+        Assert.Equal("JS123", returnedModel.Results[0].SamAccountName);
+        Assert.Equal("Search", stubService.LastScriptName);
+        Assert.Equal("Jane", stubService.LastParameters!["search"]);
+    }
+
+    [Fact]
+    public async Task Details_Get_ReturnsParsedUserDetails()
+    {
+        var stubService = new StubPowerShellService
+        {
+            ExecutionResults = new Dictionary<string, ScriptExecutionResult>
+            {
+                ["GetUser"] = new ScriptExecutionResult
+                {
+                    Success = true,
+                    Output = "{\"samAccountName\":\"JS123\",\"displayName\":\"Jane Smith\",\"userPrincipalName\":\"jane.smith@example.com\",\"enabled\":true}"
+                }
+            }
+        };
+
+        var controller = new UsersController(stubService);
+
+        var result = await controller.Details("JS123");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<UserDetailsViewModel>(viewResult.Model);
+
+        Assert.Equal("JS123", model.SamAccountName);
+        Assert.Equal("Jane Smith", model.DisplayName);
+        Assert.True(model.Enabled);
+        Assert.Equal("GetUser", stubService.LastScriptName);
+        Assert.Equal("JS123", stubService.LastParameters!["SamAccountName"]);
+    }
+
     private static NewUserFormModel CreateValidModel()
     {
         return new NewUserFormModel
@@ -100,7 +158,7 @@ public class UsersControllerTests
             FirstName = "Jane",
             LastName = "Smith",
             UserPrincipalName = "jane.smith@example.com",
-            SamAccountName = "jane.smith",
+            SamAccountName = "JS123",
             Description = "Test user",
             ExtensionAttribute2Value = "SchoolA"
         };
@@ -109,6 +167,7 @@ public class UsersControllerTests
     private sealed class StubPowerShellService : IPowerShellService
     {
         public ScriptExecutionResult ExecutionResult { get; set; } = new();
+        public Dictionary<string, ScriptExecutionResult> ExecutionResults { get; set; } = new();
         public bool ExecuteCalled { get; private set; }
         public string? LastScriptName { get; private set; }
         public Dictionary<string, string>? LastParameters { get; private set; }
@@ -125,6 +184,11 @@ public class UsersControllerTests
             ExecuteCalled = true;
             LastScriptName = scriptName;
             LastParameters = parameters;
+            if (ExecutionResults.TryGetValue(scriptName, out var scriptResult))
+            {
+                return Task.FromResult(scriptResult);
+            }
+
             return Task.FromResult(ExecutionResult);
         }
     }

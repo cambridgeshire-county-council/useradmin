@@ -51,3 +51,5 @@ secrets.json
 # Web App specific
 wwwroot/node_modules/
 dist/
+
+PSScriptWebApp-publish.zip
