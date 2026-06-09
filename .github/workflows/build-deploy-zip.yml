@@ -24,7 +24,10 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Restore
-        run: dotnet restore PSScriptWebApp.csproj
+        run: dotnet restore PSScriptWebApp.sln
+
+      - name: Test
+        run: dotnet test PSScriptWebApp.sln -c Release --no-restore
 
       - name: Build
         run: dotnet build PSScriptWebApp.csproj -c Release --no-restore

@@ -10,4 +10,11 @@
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.5.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="PSScriptWebApp.Tests\**\*.cs" />
+    <None Remove="PSScriptWebApp.Tests\**\*" />
+    <Content Remove="PSScriptWebApp.Tests\**\*" />
+    <EmbeddedResource Remove="PSScriptWebApp.Tests\**\*" />
+  </ItemGroup>
+
 </Project>

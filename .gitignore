@@ -8,6 +8,7 @@
 bin/
 obj/
 out/
+publish/
 
 # Visual Studio
 .vs/

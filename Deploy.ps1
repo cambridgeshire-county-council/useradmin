@@ -1,11 +1,11 @@
 param(
-  [string]$Owner = "YOUR_ORG_OR_USER",
-  [string]$Repo = "PSScriptWebApp",
+  [string]$Owner = "cambridgeshire-county-council",
+  [string]$Repo = "useradmin",
   [string]$Branch = "main",
   [string]$Token = $env:GITHUB_TOKEN,
-  [string]$AppPool = "PSScriptWebAppPool",
+  [string]$AppPool = "ScriptRunner",
   [string]$SitePath = "C:\inetpub\wwwroot\PSScriptWebApp",
-  [string]$WorkDir = "C:\deploy\psscriptwebapp"
+  [string]$WorkDir = "C:\temp\psscriptwebapp"
 )
 
 $ErrorActionPreference = "Stop"

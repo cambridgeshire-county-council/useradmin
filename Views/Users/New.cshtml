@@ -1,0 +1,86 @@
+@model NewUserFormModel
+@{
+    ViewData["Title"] = "New User";
+}
+
+<div class="container">
+    <h1>New User</h1>
+    <p class="text-muted">Create a user account using the dedicated NewUser script form.</p>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <form asp-controller="Users" asp-action="New" method="post">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="FirstName" class="form-label"></label>
+                        <input asp-for="FirstName" class="form-control" />
+                        <span asp-validation-for="FirstName" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="LastName" class="form-label"></label>
+                        <input asp-for="LastName" class="form-control" />
+                        <span asp-validation-for="LastName" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="UserPrincipalName" class="form-label"></label>
+                        <input asp-for="UserPrincipalName" class="form-control" />
+                        <span asp-validation-for="UserPrincipalName" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="SamAccountName" class="form-label"></label>
+                        <input asp-for="SamAccountName" class="form-control" />
+                        <span asp-validation-for="SamAccountName" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="Description" class="form-label"></label>
+                        <input asp-for="Description" class="form-control" />
+                        <span asp-validation-for="Description" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="ExtensionAttribute2Value" class="form-label"></label>
+                        <input asp-for="ExtensionAttribute2Value" class="form-control" />
+                        <span asp-validation-for="ExtensionAttribute2Value" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-4">Create User</button>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.ExecutionSucceeded.HasValue)
+    {
+        <div class="card mt-4">
+            <div class="card-header">Execution Result</div>
+            <div class="card-body">
+                @if (Model.ExecutionSucceeded.Value)
+                {
+                    <div class="alert alert-success" role="alert">User creation script completed successfully.</div>
+                }
+                else
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @(string.IsNullOrWhiteSpace(Model.ExecutionError) ? "User creation script failed." : Model.ExecutionError)
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(Model.ExecutionOutput))
+                {
+                    <pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word;">@Model.ExecutionOutput</pre>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
