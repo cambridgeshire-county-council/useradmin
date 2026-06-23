@@ -17,4 +17,11 @@
     <EmbeddedResource Remove="PSScriptWebApp.Tests\**\*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="scripts\**\*.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
