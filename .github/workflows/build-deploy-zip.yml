@@ -36,6 +36,7 @@ jobs:
         run: dotnet publish PSScriptWebApp.csproj -c Release --no-build -o out
 
       - name: Create zip and checksum
+        id: package
         shell: pwsh
         run: |
           $shortSha = "${{ github.sha }}".Substring(0, 8)
@@ -46,11 +47,13 @@ jobs:
           $hash = (Get-FileHash $zipName -Algorithm SHA256).Hash
           "$hash *$zipName" | Out-File "$zipName.sha256" -Encoding ascii
 
+          "zip_name=$zipName" | Out-File $env:GITHUB_OUTPUT -Append
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: webapp-zip
           path: |
-            PSScriptWebApp-*.zip
-            PSScriptWebApp-*.zip.sha256
+            ${{ steps.package.outputs.zip_name }}
+            ${{ steps.package.outputs.zip_name }}.sha256
           retention-days: 14
