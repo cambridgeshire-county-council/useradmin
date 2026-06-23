@@ -59,10 +59,11 @@ public class UsersControllerTests
         Assert.NotNull(stubService.LastParameters);
         Assert.Equal(model.FirstName, stubService.LastParameters!["FirstName"]);
         Assert.Equal(model.LastName, stubService.LastParameters["LastName"]);
+        Assert.Equal(model.DisplayName, stubService.LastParameters["DisplayName"]);
         Assert.Equal(model.UserPrincipalName, stubService.LastParameters["UserPrincipalName"]);
         Assert.Equal(model.SamAccountName, stubService.LastParameters["SamAccountName"]);
-        Assert.Equal(model.Description, stubService.LastParameters["Description"]);
-        Assert.Equal(model.ExtensionAttribute2Value, stubService.LastParameters["ExtensionAttribute2Value"]);
+        Assert.Equal(model.Company, stubService.LastParameters["Company"]);
+        Assert.Equal(model.Country, stubService.LastParameters["Country"]);
 
         Assert.True(returnedModel.ExecutionSucceeded);
         Assert.Contains("Generated Password: [hidden]", returnedModel.ExecutionOutput);
@@ -157,10 +158,9 @@ public class UsersControllerTests
         {
             FirstName = "Jane",
             LastName = "Smith",
-            UserPrincipalName = "jane.smith@example.com",
-            SamAccountName = "JS123",
-            Description = "Test user",
-            ExtensionAttribute2Value = "SchoolA"
+            DisplayName = "Jane Smith",
+            UserPrincipalName = "jane.smith@cambridgeshire.gov.uk",
+            SamAccountName = "JS123"
         };
     }
 
