@@ -5,21 +5,48 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$LastName,
 
+    [Parameter(Mandatory = $false)]
+    [string]$DisplayName = "",
+
     [Parameter(Mandatory = $true)]
     [string]$UserPrincipalName,
 
     [Parameter(Mandatory = $true)]
     [string]$SamAccountName,
 
-    [Parameter(Mandatory = $true)]
-    [string]$Description,
+    [Parameter(Mandatory = $false)]
+    [string]$Office = "",
 
-    [Parameter(Mandatory = $true)]
-    [string]$ExtensionAttribute2Value
+    [Parameter(Mandatory = $false)]
+    [string]$StreetAddress = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$POBox = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$PostalCode = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Country = "UK",
+
+    [Parameter(Mandatory = $false)]
+    [string]$JobTitle = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Department = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Company = "Cambridgeshire County Council",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Manager = ""
 )
 
-# Calculated fields
-$DisplayName          = "$FirstName $LastName"
+# Use provided DisplayName or derive from first/last name
+if ([string]::IsNullOrWhiteSpace($DisplayName)) {
+    $DisplayName = "$FirstName $LastName"
+}
+
 $Alias                = "$($FirstName.ToLower()).$($LastName.ToLower())"
 $RemoteRoutingAddress = "$Alias@cccandpcc.mail.microsoft.com"
 $OU                   = "OU=Users,OU=Accounts,OU=CCC365,DC=CCC,DC=Cambridgeshire,DC=gov,DC=uk"
@@ -54,10 +81,26 @@ if (-not $User) {
 }
 
 try {
-    Get-ADUser $SamAccountName -Properties *
-    Set-ADUser -Identity $SamAccountName -DisplayName $DisplayName -Description $Description -ErrorAction Stop
-    Set-ADUser -Identity $SamAccountName -Replace @{extensionAttribute2 = $ExtensionAttribute2Value} -ErrorAction Stop
-    Set-ADUser -Instance $User -ErrorAction Stop
+    $SetParams = @{
+        Identity    = $SamAccountName
+        DisplayName = $DisplayName
+        ErrorAction = 'Stop'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Office))        { $SetParams['Office']        = $Office }
+    if (-not [string]::IsNullOrWhiteSpace($StreetAddress)) { $SetParams['StreetAddress'] = $StreetAddress }
+    if (-not [string]::IsNullOrWhiteSpace($POBox))         { $SetParams['POBox']         = $POBox }
+    if (-not [string]::IsNullOrWhiteSpace($PostalCode))    { $SetParams['PostalCode']    = $PostalCode }
+    if (-not [string]::IsNullOrWhiteSpace($Country))       { $SetParams['Country']       = $Country }
+    if (-not [string]::IsNullOrWhiteSpace($JobTitle))      { $SetParams['Title']         = $JobTitle }
+    if (-not [string]::IsNullOrWhiteSpace($Department))    { $SetParams['Department']    = $Department }
+    if (-not [string]::IsNullOrWhiteSpace($Company))       { $SetParams['Company']       = $Company }
+
+    Set-ADUser @SetParams
+
+    if (-not [string]::IsNullOrWhiteSpace($Manager)) {
+        Set-ADUser -Identity $SamAccountName -Manager $Manager -ErrorAction Stop
+    }
 } catch {
     Write-Error "Failed to update AD user properties: $_"
     exit 1

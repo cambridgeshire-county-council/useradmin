@@ -38,10 +38,18 @@ public class UsersController : Controller
         {
             ["FirstName"] = model.FirstName,
             ["LastName"] = model.LastName,
+            ["DisplayName"] = model.DisplayName,
             ["UserPrincipalName"] = model.UserPrincipalName,
             ["SamAccountName"] = model.SamAccountName,
-            ["Description"] = model.Description,
-            ["ExtensionAttribute2Value"] = model.ExtensionAttribute2Value
+            ["Office"] = model.Office ?? string.Empty,
+            ["StreetAddress"] = model.StreetAddress ?? string.Empty,
+            ["POBox"] = model.POBox ?? string.Empty,
+            ["PostalCode"] = model.PostalCode ?? string.Empty,
+            ["Country"] = model.Country,
+            ["JobTitle"] = model.JobTitle ?? string.Empty,
+            ["Department"] = model.Department ?? string.Empty,
+            ["Company"] = model.Company,
+            ["Manager"] = model.Manager ?? string.Empty
         };
 
         var result = await _powerShellService.ExecuteScriptAsync("NewUser", parameters);
