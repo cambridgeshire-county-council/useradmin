@@ -96,5 +96,10 @@ public class ScriptsControllerTests
         {
             return Task.FromResult(ExecutionResult);
         }
+
+        public Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

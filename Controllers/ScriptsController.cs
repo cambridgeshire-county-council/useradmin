@@ -45,4 +45,32 @@ public class ScriptsController : Controller
             return Json(new ScriptExecutionResult { Success = false, Error = ex.Message });
         }
     }
+
+    [HttpGet]
+    public async Task Stream(string name, CancellationToken cancellationToken)
+    {
+        var parameters = Request.Query
+            .Where(q => q.Key != "name")
+            .ToDictionary(q => q.Key, q => q.Value.ToString());
+
+        Response.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+
+        try
+        {
+            await _powerShellService.StreamScriptOutputAsync(name, parameters, async line =>
+            {
+                await Response.WriteAsync(line, cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            var errorEvent = "data:" + System.Text.Json.JsonSerializer.Serialize(new { type = "done", success = false, error = ex.Message }) + "\n\n";
+            await Response.WriteAsync(errorEvent, cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+    }
 }

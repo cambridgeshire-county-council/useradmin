@@ -11,6 +11,7 @@ public interface IPowerShellService
     List<PowerShellScript> GetAvailableScripts();
     PowerShellScript GetScriptDetails(string scriptName);
     Task<ScriptExecutionResult> ExecuteScriptAsync(string scriptName, Dictionary<string, string> parameters);
+    Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken);
 }
 
 public class PowerShellService : IPowerShellService
@@ -106,6 +107,58 @@ public class PowerShellService : IPowerShellService
         }
 
         return parameters;
+    }
+
+    public async Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken)
+    {
+        var scriptPath = Path.Combine(_scriptsPath, $"{scriptName}.ps1");
+        if (!File.Exists(scriptPath))
+            throw new FileNotFoundException($"Script {scriptName} not found.");
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-ExecutionPolicy");
+        startInfo.ArgumentList.Add("Bypass");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(scriptPath);
+
+        foreach (var param in parameters)
+        {
+            startInfo.ArgumentList.Add($"-{param.Key}");
+            startInfo.ArgumentList.Add(param.Value ?? string.Empty);
+        }
+
+        using var process = System.Diagnostics.Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start powershell.exe process.");
+
+        var stdoutTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await process.StandardOutput.ReadLineAsync(cancellationToken)) != null)
+                await onLine("data:" + System.Text.Json.JsonSerializer.Serialize(new { type = "line", text = line }) + "\n\n");
+        }, cancellationToken);
+
+        var stderrTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await process.StandardError.ReadLineAsync(cancellationToken)) != null)
+                await onLine("data:" + System.Text.Json.JsonSerializer.Serialize(new { type = "error", text = line }) + "\n\n");
+        }, cancellationToken);
+
+        await Task.WhenAll(stdoutTask, stderrTask);
+        await process.WaitForExitAsync(cancellationToken);
+
+        var success = process.ExitCode == 0;
+        var exitError = success ? null : "Script exited with code " + process.ExitCode;
+        await onLine("data:" + System.Text.Json.JsonSerializer.Serialize(new { type = "done", success, error = exitError }) + "\n\n");
     }
 
     public async Task<ScriptExecutionResult> ExecuteScriptAsync(string scriptName, Dictionary<string, string> parameters)

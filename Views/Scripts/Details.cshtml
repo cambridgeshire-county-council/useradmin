@@ -55,50 +55,78 @@
     <script>
         document.getElementById('scriptForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const form = e.target;
             const parameters = {};
             const inputs = form.querySelectorAll('input');
             const runBtn = document.getElementById('runBtn');
             const loadingIndicator = document.getElementById('loadingIndicator');
+            const outputDiv = document.getElementById('output');
+            const outputText = document.getElementById('outputText');
 
-            // Disable form controls and show loading indicator
             inputs.forEach(input => input.disabled = true);
             runBtn.disabled = true;
             runBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Running…';
             loadingIndicator.style.display = 'block';
-            document.getElementById('output').style.display = 'none';
+            outputDiv.style.display = 'none';
+            outputText.textContent = '';
+            outputText.className = '';
 
-            // Collect form data
             for (const input of inputs) {
                 parameters[input.name] = input.value;
             }
-            
+
+            const url = new URL('@Url.Action("Stream", "Scripts", new { name = Model.Name })', window.location.origin);
+            Object.entries(parameters).forEach(([k, v]) => url.searchParams.set(k, v));
+
             try {
-                const response = await fetch('@Url.Action("Execute", "Scripts", new { name = Model.Name })', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(parameters)
-                });
-                
-                const result = await response.json();
-                const outputDiv = document.getElementById('output');
-                const outputText = document.getElementById('outputText');
-                
-                outputDiv.style.display = 'block';
-                if (result.success) {
-                    outputText.className = 'text-success';
-                    outputText.textContent = result.output;
-                } else {
+                const response = await fetch(url.toString(), { method: 'GET' });
+
+                if (!response.ok) {
+                    outputDiv.style.display = 'block';
                     outputText.className = 'text-danger';
-                    outputText.textContent = result.error;
+                    outputText.textContent = `Request failed: ${response.status}`;
+                    return;
+                }
+
+                outputDiv.style.display = 'block';
+                loadingIndicator.style.display = 'none';
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('data:')) {
+                            const payload = JSON.parse(line.slice(5).trim());
+                            if (payload.type === 'line') {
+                                outputText.className = 'text-success';
+                                outputText.textContent += payload.text + '\n';
+                            } else if (payload.type === 'error') {
+                                outputText.className = 'text-danger';
+                                outputText.textContent += payload.text + '\n';
+                            } else if (payload.type === 'done') {
+                                if (!payload.success && outputText.textContent === '') {
+                                    outputText.className = 'text-danger';
+                                    outputText.textContent = payload.error || 'Script failed.';
+                                }
+                            }
+                        }
+                    }
                 }
             } catch (error) {
-                console.error('Error:', error);
+                outputDiv.style.display = 'block';
+                outputText.className = 'text-danger';
+                outputText.textContent = 'Connection error: ' + error.message;
             } finally {
-                // Re-enable form controls and hide loading indicator
                 inputs.forEach(input => input.disabled = false);
                 runBtn.disabled = false;
                 runBtn.innerHTML = 'Run Script';
