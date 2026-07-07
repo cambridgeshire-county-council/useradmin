@@ -1,0 +1,83 @@
+@model MarkedForDeletionViewModel
+@{
+    ViewData["Title"] = "Marked for Deletion";
+}
+
+<div class="container">
+    <h1>Marked for Deletion</h1>
+    <p class="text-muted">Accounts flagged for deletion. Use the filter to narrow by how long they have been marked.</p>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <form asp-controller="Users" asp-action="MarkedForDeletion" method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="filter" class="form-label">Show accounts marked</label>
+                    <select id="filter" name="filter" class="form-select" onchange="this.form.submit()">
+                        <option value="all" selected="@(Model.Filter == "all")">All</option>
+                        <option value="week" selected="@(Model.Filter == "week")">1+ week ago</option>
+                        <option value="month" selected="@(Model.Filter == "month")">1+ month ago</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success mt-4" role="alert">@Model.StatusMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="alert alert-danger mt-4" role="alert">@Model.Error</div>
+    }
+
+    @if (Model.Users.Count > 0)
+    {
+        <form asp-controller="Users" asp-action="DeleteMarked" method="post" class="mt-4"
+              onsubmit="return confirm('Delete @Model.Users.Count user(s)? This cannot be undone.')">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="filter" value="@Model.Filter" />
+            @foreach (var user in Model.Users)
+            {
+                <input type="hidden" name="samAccountNames" value="@user.SamAccountName" />
+            }
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>@Model.Users.Count user(s) displayed</span>
+                    <button type="submit" class="btn btn-danger btn-sm">Delete All Displayed</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>SAM Account</th>
+                                <th>UPN</th>
+                                <th>Account Status</th>
+                                <th>Date Marked</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var user in Model.Users)
+                        {
+                            <tr>
+                                <td>@user.Name</td>
+                                <td>@user.SamAccountName</td>
+                                <td>@user.UserPrincipalName</td>
+                                <td>@(user.Enabled.HasValue ? (user.Enabled.Value ? "Enabled" : "Disabled") : "Unknown")</td>
+                                <td>@(user.MarkedDate.HasValue ? user.MarkedDate.Value.ToString("yyyy-MM-dd") : user.ExtensionAttribute2)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </form>
+    }
+    else if (string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="alert alert-secondary mt-4" role="alert">No accounts are currently marked for deletion.</div>
+    }
+</div>

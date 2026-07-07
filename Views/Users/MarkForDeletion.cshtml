@@ -1,0 +1,93 @@
+@model DeletionSearchViewModel
+@{
+    ViewData["Title"] = "Mark for Deletion";
+}
+
+<div class="container">
+    <h1>Mark for Deletion</h1>
+    <p class="text-muted">Search for AD accounts and mark or unmark them for deletion.</p>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <form asp-controller="Users" asp-action="MarkForDeletion" method="post" class="row g-3">
+                @Html.AntiForgeryToken()
+
+                <div class="col-md-9">
+                    <label asp-for="Search" class="form-label">Search</label>
+                    <input asp-for="Search" class="form-control" placeholder="Enter full or partial name" />
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Search</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success mt-4" role="alert">@Model.StatusMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="alert alert-danger mt-4" role="alert">@Model.Error</div>
+    }
+
+    @if (Model.Results.Count > 0)
+    {
+        <div class="card mt-4">
+            <div class="card-header">Results (@Model.Results.Count)</div>
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>SAM Account</th>
+                            <th>UPN</th>
+                            <th>Status</th>
+                            <th>Marked Date</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var user in Model.Results)
+                    {
+                        <tr>
+                            <td>@user.Name</td>
+                            <td>@user.SamAccountName</td>
+                            <td>@user.UserPrincipalName</td>
+                            <td>@(user.Enabled.HasValue ? (user.Enabled.Value ? "Enabled" : "Disabled") : "Unknown")</td>
+                            <td>@(user.IsMarked ? user.ExtensionAttribute2 : "—")</td>
+                            <td>
+                                @if (user.IsMarked)
+                                {
+                                    <form asp-controller="Users" asp-action="UnmarkUser" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="samAccountName" value="@user.SamAccountName" />
+                                        <input type="hidden" name="returnSearch" value="@Model.Search" />
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">Unmark</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <form asp-controller="Users" asp-action="MarkUser" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="samAccountName" value="@user.SamAccountName" />
+                                        <input type="hidden" name="returnSearch" value="@Model.Search" />
+                                        <button type="submit" class="btn btn-sm btn-outline-warning">Mark for Deletion</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.Search) && string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="alert alert-secondary mt-4" role="alert">No users found for "@Model.Search".</div>
+    }
+</div>

@@ -184,6 +184,159 @@ public class UsersController : Controller
         }
     }
 
+    [HttpGet]
+    public async Task<IActionResult> MarkForDeletion(string? search, string? status)
+    {
+        var model = new DeletionSearchViewModel
+        {
+            Search = search,
+            StatusMessage = status
+        };
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var result = await _powerShellService.ExecuteScriptAsync(
+                "SearchForDeletion",
+                new Dictionary<string, string> { ["search"] = search });
+
+            if (!result.Success)
+            {
+                model.Error = string.IsNullOrWhiteSpace(result.Error) ? "Search failed." : result.Error;
+                return View(model);
+            }
+
+            try
+            {
+                model.Results = ParseListOutput<DeletionSearchResultItem>(result.Output);
+            }
+            catch (JsonException)
+            {
+                model.Error = "Search results could not be parsed.";
+            }
+        }
+
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> MarkForDeletion(DeletionSearchViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.Search))
+        {
+            return View(model);
+        }
+
+        var result = await _powerShellService.ExecuteScriptAsync(
+            "SearchForDeletion",
+            new Dictionary<string, string> { ["search"] = model.Search });
+
+        if (!result.Success)
+        {
+            model.Error = string.IsNullOrWhiteSpace(result.Error) ? "Search failed." : result.Error;
+            return View(model);
+        }
+
+        try
+        {
+            model.Results = ParseListOutput<DeletionSearchResultItem>(result.Output);
+        }
+        catch (JsonException)
+        {
+            model.Error = "Search results could not be parsed.";
+        }
+
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> MarkUser(string samAccountName, string? returnSearch)
+    {
+        var result = await _powerShellService.ExecuteScriptAsync(
+            "MarkForDeletion",
+            new Dictionary<string, string> { ["SamAccountName"] = samAccountName });
+
+        var status = result.Success
+            ? $"'{samAccountName}' marked for deletion."
+            : (string.IsNullOrWhiteSpace(result.Error) ? "Mark failed." : result.Error);
+
+        return RedirectToAction(nameof(MarkForDeletion), new { search = returnSearch, status });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnmarkUser(string samAccountName, string? returnSearch)
+    {
+        var result = await _powerShellService.ExecuteScriptAsync(
+            "UnmarkForDeletion",
+            new Dictionary<string, string> { ["SamAccountName"] = samAccountName });
+
+        var status = result.Success
+            ? $"'{samAccountName}' unmarked."
+            : (string.IsNullOrWhiteSpace(result.Error) ? "Unmark failed." : result.Error);
+
+        return RedirectToAction(nameof(MarkForDeletion), new { search = returnSearch, status });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> MarkedForDeletion(string filter = "all", string? status = null)
+    {
+        var model = new MarkedForDeletionViewModel { Filter = filter, StatusMessage = status };
+
+        var result = await _powerShellService.ExecuteScriptAsync(
+            "GetMarkedForDeletion",
+            new Dictionary<string, string>());
+
+        if (!result.Success)
+        {
+            model.Error = string.IsNullOrWhiteSpace(result.Error) ? "Failed to retrieve marked users." : result.Error;
+            return View(model);
+        }
+
+        try
+        {
+            var allUsers = ParseListOutput<MarkedUserItem>(result.Output);
+
+            model.Users = filter switch
+            {
+                "week" => allUsers.Where(u => u.MarkedDate.HasValue && u.MarkedDate.Value <= DateTime.Today.AddDays(-7)).ToList(),
+                "month" => allUsers.Where(u => u.MarkedDate.HasValue && u.MarkedDate.Value <= DateTime.Today.AddDays(-30)).ToList(),
+                _ => allUsers
+            };
+        }
+        catch (JsonException)
+        {
+            model.Error = "Marked users list could not be parsed.";
+        }
+
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteMarked(List<string> samAccountNames, string filter = "all")
+    {
+        int succeeded = 0;
+        int failed = 0;
+
+        foreach (var sam in samAccountNames)
+        {
+            var result = await _powerShellService.ExecuteScriptAsync(
+                "DeleteUser",
+                new Dictionary<string, string> { ["SamAccountName"] = sam });
+
+            if (result.Success) succeeded++;
+            else failed++;
+        }
+
+        var status = failed == 0
+            ? $"{succeeded} user(s) deleted successfully."
+            : $"{succeeded} deleted, {failed} failed.";
+
+        return RedirectToAction(nameof(MarkedForDeletion), new { filter, status });
+    }
+
     private static string? SanitizeOutput(string? output)
     {
         if (string.IsNullOrWhiteSpace(output))
