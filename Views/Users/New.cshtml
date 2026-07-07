@@ -9,7 +9,7 @@
 
     <div class="card mt-4">
         <div class="card-body">
-            <form asp-controller="Users" asp-action="New" method="post">
+            <form id="scriptForm" asp-controller="Users" asp-action="New" method="post">
                 @Html.AntiForgeryToken()
                 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
@@ -106,38 +106,110 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary mt-4">Create User</button>
+                <button type="submit" id="runBtn" class="btn btn-primary mt-4">Create User</button>
             </form>
         </div>
     </div>
 
-    @if (Model.ExecutionSucceeded.HasValue)
-    {
-        <div class="card mt-4">
-            <div class="card-header">Execution Result</div>
-            <div class="card-body">
-                @if (Model.ExecutionSucceeded.Value)
-                {
-                    <div class="alert alert-success" role="alert">User creation script completed successfully.</div>
-                }
-                else
-                {
-                    <div class="alert alert-danger" role="alert">
-                        @(string.IsNullOrWhiteSpace(Model.ExecutionError) ? "User creation script failed." : Model.ExecutionError)
-                    </div>
-                }
+    <div id="loadingIndicator" class="mt-4" style="display: none;">
+        <div class="d-flex align-items-center gap-2 text-secondary">
+            <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+            <span>Running script&hellip;</span>
+        </div>
+    </div>
 
-                @if (!string.IsNullOrWhiteSpace(Model.ExecutionOutput))
-                {
-                    <pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word;">@Model.ExecutionOutput</pre>
-                }
+    <div id="output" class="mt-4" style="display: none;">
+        <div class="card">
+            <div class="card-header">Output</div>
+            <div class="card-body">
+                <pre id="outputText" style="white-space: pre-wrap; word-wrap: break-word;"></pre>
             </div>
         </div>
-    }
+    </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('scriptForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const form = e.target;
+            if (!form.reportValidity()) return;
+
+            const inputs = form.querySelectorAll('input');
+            const runBtn = document.getElementById('runBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const outputDiv = document.getElementById('output');
+            const outputText = document.getElementById('outputText');
+
+            inputs.forEach(input => input.disabled = true);
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Running…';
+            loadingIndicator.style.display = 'block';
+            outputDiv.style.display = 'none';
+            outputText.textContent = '';
+            outputText.className = '';
+
+            const url = new URL('@Url.Action("StreamNew", "Users")', window.location.origin);
+            inputs.forEach(input => { if (input.name) url.searchParams.set(input.name, input.value); });
+
+            try {
+                const response = await fetch(url.toString(), { method: 'GET' });
+
+                if (!response.ok) {
+                    outputDiv.style.display = 'block';
+                    outputText.className = 'text-danger';
+                    outputText.textContent = `Request failed: ${response.status}`;
+                    return;
+                }
+
+                outputDiv.style.display = 'block';
+                loadingIndicator.style.display = 'none';
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('data:')) {
+                            const payload = JSON.parse(line.slice(5).trim());
+                            if (payload.type === 'line') {
+                                outputText.className = 'text-success';
+                                outputText.textContent += payload.text + '\n';
+                            } else if (payload.type === 'error') {
+                                outputText.className = 'text-danger';
+                                outputText.textContent += payload.text + '\n';
+                            } else if (payload.type === 'done' && !payload.success) {
+                                if (outputText.textContent === '') {
+                                    outputText.className = 'text-danger';
+                                    outputText.textContent = payload.error || 'Script failed.';
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                outputDiv.style.display = 'block';
+                outputText.className = 'text-danger';
+                outputText.textContent = 'Connection error: ' + error.message;
+            } finally {
+                inputs.forEach(input => input.disabled = false);
+                runBtn.disabled = false;
+                runBtn.innerHTML = 'Create User';
+                loadingIndicator.style.display = 'none';
+            }
+        });
+    </script>
+
     <script>
         (function () {
             const firstName = document.getElementById('FirstName');

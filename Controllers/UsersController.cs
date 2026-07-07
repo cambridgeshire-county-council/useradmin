@@ -67,6 +67,34 @@ public class UsersController : Controller
     }
 
     [HttpGet]
+    public async Task StreamNew(CancellationToken cancellationToken)
+    {
+        var parameters = Request.Query
+            .ToDictionary(q => q.Key, q => q.Value.ToString());
+
+        Response.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+
+        try
+        {
+            await _powerShellService.StreamScriptOutputAsync("NewUser", parameters, async sseEvent =>
+            {
+                var sanitized = SanitizeSseEvent(sseEvent);
+                await Response.WriteAsync(sanitized, cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            var errorEvent = "data:" + JsonSerializer.Serialize(new { type = "done", success = false, error = ex.Message }) + "\n\n";
+            await Response.WriteAsync(errorEvent, cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+    }
+
+    [HttpGet]
     public IActionResult Search()
     {
         return View(new UserSearchViewModel());
@@ -159,14 +187,37 @@ public class UsersController : Controller
     private static string? SanitizeOutput(string? output)
     {
         if (string.IsNullOrWhiteSpace(output))
-        {
             return output;
-        }
 
         return Regex.Replace(
             output,
             @"(?im)^Generated Password:\s*.+$",
             "Generated Password: [hidden]");
+    }
+
+    private static string SanitizeSseEvent(string sseEvent)
+    {
+        if (!sseEvent.Contains("Generated Password", StringComparison.OrdinalIgnoreCase))
+            return sseEvent;
+
+        if (!sseEvent.StartsWith("data:"))
+            return sseEvent;
+
+        try
+        {
+            var jsonPart = sseEvent["data:".Length..].TrimEnd('\n');
+            using var doc = JsonDocument.Parse(jsonPart);
+            var root = doc.RootElement;
+            var type = root.GetProperty("type").GetString() ?? "line";
+            if (root.TryGetProperty("text", out var textProp))
+            {
+                var sanitized = SanitizeOutput(textProp.GetString());
+                return "data:" + JsonSerializer.Serialize(new { type, text = sanitized }) + "\n\n";
+            }
+        }
+        catch { }
+
+        return sseEvent;
     }
 
     private static List<T> ParseListOutput<T>(string? output)
