@@ -251,11 +251,15 @@ public class UsersController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> MarkUser(string samAccountName, string? returnSearch)
+    public async Task<IActionResult> MarkUser(string samAccountName, string? returnSearch, string? notes)
     {
         var result = await _powerShellService.ExecuteScriptAsync(
             "MarkForDeletion",
-            new Dictionary<string, string> { ["SamAccountName"] = samAccountName });
+            new Dictionary<string, string>
+            {
+                ["SamAccountName"] = samAccountName,
+                ["Notes"] = notes ?? string.Empty
+            });
 
         var status = result.Success
             ? $"'{samAccountName}' marked for deletion."
@@ -266,17 +270,53 @@ public class UsersController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UnmarkUser(string samAccountName, string? returnSearch)
+    public async Task<IActionResult> UnmarkUser(string samAccountName, string? returnSearch, string? notes)
     {
         var result = await _powerShellService.ExecuteScriptAsync(
             "UnmarkForDeletion",
-            new Dictionary<string, string> { ["SamAccountName"] = samAccountName });
+            new Dictionary<string, string>
+            {
+                ["SamAccountName"] = samAccountName,
+                ["Notes"] = notes ?? string.Empty
+            });
 
         var status = result.Success
             ? $"'{samAccountName}' unmarked."
             : (string.IsNullOrWhiteSpace(result.Error) ? "Unmark failed." : result.Error);
 
         return RedirectToAction(nameof(MarkForDeletion), new { search = returnSearch, status });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetUserNotes(string samAccountName)
+    {
+        if (string.IsNullOrWhiteSpace(samAccountName))
+        {
+            return BadRequest();
+        }
+
+        var result = await _powerShellService.ExecuteScriptAsync(
+            "GetUserNotes",
+            new Dictionary<string, string> { ["SamAccountName"] = samAccountName });
+
+        if (!result.Success)
+        {
+            return StatusCode(500, new { error = string.IsNullOrWhiteSpace(result.Error) ? "Failed to retrieve notes." : result.Error });
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(result.Output);
+            var notes = document.RootElement.TryGetProperty("Notes", out var notesProp) && notesProp.ValueKind == JsonValueKind.String
+                ? notesProp.GetString()
+                : null;
+
+            return new JsonResult(new { notes });
+        }
+        catch (JsonException)
+        {
+            return StatusCode(500, new { error = "Notes could not be parsed." });
+        }
     }
 
     [HttpGet]
