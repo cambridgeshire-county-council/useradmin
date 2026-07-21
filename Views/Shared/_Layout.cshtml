@@ -40,6 +40,10 @@
                         </li>
 
                     </ul>
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <span class="navbar-text text-muted">Signed in as @User.Identity.Name</span>
+                    }
                 </div>
             </div>
         </nav>
