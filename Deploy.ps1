@@ -4,7 +4,7 @@ param(
   [string]$Branch = "main",
   [string]$Token = $env:GITHUB_TOKEN,
   [string]$AppPool = "ScriptRunner",
-  [string]$SitePath = "C:\inetpub\wwwroot\PSScriptWebApp",
+  [string]$SitePath = "C:\inetpub\ScriptRunner",
   [string]$WorkDir = "C:\temp\psscriptwebapp"
 )
 
@@ -73,11 +73,23 @@ Import-Module WebAdministration
 Stop-WebAppPool -Name $AppPool
 
 try {
+  $preservedAppSettings = Join-Path $WorkDir "appsettings.preserved.json"
+  $liveAppSettings = Join-Path $SitePath "appsettings.json"
+  if (Test-Path $liveAppSettings) {
+    Write-Host "      Preserving existing appsettings.json..."
+    Copy-Item $liveAppSettings $preservedAppSettings -Force
+  }
+
   Write-Host "      Clearing site directory: $SitePath"
   if (Test-Path $SitePath) { Remove-Item "$SitePath\*" -Recurse -Force }
 
   Write-Host "      Extracting $($appZip.Name) to $SitePath..."
   Expand-Archive -Path $appZip.FullName -DestinationPath $SitePath -Force
+
+  if (Test-Path $preservedAppSettings) {
+    Write-Host "      Restoring preserved appsettings.json..."
+    Copy-Item $preservedAppSettings $liveAppSettings -Force
+  }
 
   Write-Host "      Starting app pool '$AppPool'..."
   Start-WebAppPool -Name $AppPool

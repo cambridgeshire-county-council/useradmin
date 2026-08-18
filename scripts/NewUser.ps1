@@ -106,5 +106,12 @@ try {
     exit 1
 }
 
+try {
+    Add-ADPrincipalGroupMembership -Identity $SamAccountName -MemberOf "CCCOfficeM365E3FullLicenseG WGP" -ErrorAction Stop
+} catch {
+    Write-Error "Failed to add user to group 'CCCOfficeM365E3FullLicenseG WGP': $_"
+    exit 1
+}
+
 Write-Output "Account created successfully."
 Write-Output "Generated Password: $Password"
