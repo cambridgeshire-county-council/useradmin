@@ -68,9 +68,13 @@ if (Test-Path $SitePath) {
 }
 
 Write-Host "[8/8] Deploying..."
-Write-Host "      Stopping app pool '$AppPool'..."
 Import-Module WebAdministration
-Stop-WebAppPool -Name $AppPool
+if ((Get-WebAppPoolState -Name $AppPool).Value -ne "Stopped") {
+  Write-Host "      Stopping app pool '$AppPool'..."
+  Stop-WebAppPool -Name $AppPool
+} else {
+  Write-Host "      App pool '$AppPool' is already stopped."
+}
 
 try {
   $preservedAppSettings = Join-Path $WorkDir "appsettings.preserved.json"
@@ -91,8 +95,10 @@ try {
     Copy-Item $preservedAppSettings $liveAppSettings -Force
   }
 
-  Write-Host "      Starting app pool '$AppPool'..."
-  Start-WebAppPool -Name $AppPool
+  if ((Get-WebAppPoolState -Name $AppPool).Value -ne "Started") {
+    Write-Host "      Starting app pool '$AppPool'..."
+    Start-WebAppPool -Name $AppPool
+  }
 
   Write-Host ""
   Write-Host "=== Deploy complete ===" -ForegroundColor Green
@@ -107,6 +113,8 @@ catch {
   } else {
     Write-Warning "No backup found — rollback skipped."
   }
-  Start-WebAppPool -Name $AppPool
+  if ((Get-WebAppPoolState -Name $AppPool).Value -ne "Started") {
+    Start-WebAppPool -Name $AppPool
+  }
   throw
 }
