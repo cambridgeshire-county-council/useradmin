@@ -137,7 +137,7 @@
             const form = e.target;
             if (!form.reportValidity()) return;
 
-            const inputs = form.querySelectorAll('input');
+            const inputs = form.querySelectorAll('input:not([name="__RequestVerificationToken"])');
             const runBtn = document.getElementById('runBtn');
             const loadingIndicator = document.getElementById('loadingIndicator');
             const outputDiv = document.getElementById('output');
