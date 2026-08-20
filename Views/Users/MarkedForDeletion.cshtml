@@ -67,7 +67,7 @@
                                 <td>@user.SamAccountName</td>
                                 <td>@user.UserPrincipalName</td>
                                 <td>@(user.Enabled.HasValue ? (user.Enabled.Value ? "Enabled" : "Disabled") : "Unknown")</td>
-                                <td>@(user.MarkedDate.HasValue ? user.MarkedDate.Value.ToString("yyyy-MM-dd") : user.ExtensionAttribute2)</td>
+                                <td>@(user.MarkedDate.HasValue ? user.MarkedDate.Value.ToString("yyyy-MM-dd") : user.ExtensionAttribute3)</td>
                             </tr>
                         }
                         </tbody>

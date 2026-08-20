@@ -6,14 +6,14 @@ param(
     [string]$Notes
 )
 
-$user = Get-ADUser -Filter "SamAccountName -eq '$SamAccountName'" -Properties extensionAttribute2
+$user = Get-ADUser -Filter "SamAccountName -eq '$SamAccountName'" -Properties extensionAttribute3
 
 if ($null -eq $user) {
     Write-Output "User '$SamAccountName' not found."
     exit 1
 }
 
-$replace = @{ extensionAttribute2 = (Get-Date -Format 'yyyy-MM-dd') }
+$replace = @{ extensionAttribute3 = (Get-Date -Format 'yyyy-MM-dd') }
 $clear = @()
 
 if ([string]::IsNullOrWhiteSpace($Notes)) {

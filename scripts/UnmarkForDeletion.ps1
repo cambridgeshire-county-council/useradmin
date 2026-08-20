@@ -6,7 +6,7 @@ param(
     [string]$Notes
 )
 
-$user = Get-ADUser -Filter "SamAccountName -eq '$SamAccountName'" -Properties extensionAttribute2
+$user = Get-ADUser -Filter "SamAccountName -eq '$SamAccountName'" -Properties extensionAttribute3
 
 if ($null -eq $user) {
     Write-Output "User '$SamAccountName' not found."
@@ -14,7 +14,7 @@ if ($null -eq $user) {
 }
 
 $replace = @{}
-$clear = @('extensionAttribute2')
+$clear = @('extensionAttribute3')
 
 if ([string]::IsNullOrWhiteSpace($Notes)) {
     $clear += 'info'

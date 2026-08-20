@@ -19,8 +19,8 @@ public class DeletionSearchResultItem
     public string SamAccountName { get; set; } = string.Empty;
     public string? UserPrincipalName { get; set; }
     public bool? Enabled { get; set; }
-    public string? ExtensionAttribute2 { get; set; }
-    public bool IsMarked => !string.IsNullOrWhiteSpace(ExtensionAttribute2);
+    public string? ExtensionAttribute3 { get; set; }
+    public bool IsMarked => !string.IsNullOrWhiteSpace(ExtensionAttribute3);
 }
 
 public class MarkedForDeletionViewModel
@@ -37,7 +37,7 @@ public class MarkedUserItem
     public string SamAccountName { get; set; } = string.Empty;
     public string? UserPrincipalName { get; set; }
     public bool? Enabled { get; set; }
-    public string? ExtensionAttribute2 { get; set; }
+    public string? ExtensionAttribute3 { get; set; }
     public DateTime? MarkedDate =>
-        DateTime.TryParse(ExtensionAttribute2, out var d) ? d : null;
+        DateTime.TryParse(ExtensionAttribute3, out var d) ? d : null;
 }
