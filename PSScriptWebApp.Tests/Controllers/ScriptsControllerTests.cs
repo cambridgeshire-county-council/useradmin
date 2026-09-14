@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using PSScriptWebApp.Controllers;
 using PSScriptWebApp.Models;
 using PSScriptWebApp.Services;
@@ -71,6 +72,24 @@ public class ScriptsControllerTests
         Assert.Same(expectedResult, model);
         Assert.True(model.Success);
         Assert.Equal("script output", model.Output);
+    }
+
+    [Fact]
+    public void ExecutionEndpoints_RequirePostAndAntiforgeryValidation()
+    {
+        var executeMethod = typeof(ScriptsController).GetMethod(nameof(ScriptsController.Execute));
+        var streamMethod = typeof(ScriptsController).GetMethods()
+            .Single(method => method.Name == nameof(ScriptsController.Stream) && method.GetParameters().Length == 3);
+        var getStreamMethod = typeof(ScriptsController).GetMethods()
+            .Single(method => method.Name == nameof(ScriptsController.Stream) && method.GetParameters().Length == 1);
+
+        Assert.NotNull(executeMethod);
+        Assert.NotNull(streamMethod);
+        Assert.NotNull(executeMethod.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true).SingleOrDefault());
+        Assert.NotNull(streamMethod.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true).SingleOrDefault());
+        Assert.NotNull(getStreamMethod.GetCustomAttributes(typeof(HttpGetAttribute), inherit: true).SingleOrDefault());
+        Assert.NotNull(executeMethod.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
+        Assert.NotNull(streamMethod.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
     }
 
     private sealed class StubPowerShellService : IPowerShellService

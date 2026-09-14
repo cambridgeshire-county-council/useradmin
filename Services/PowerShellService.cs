@@ -46,9 +46,7 @@ public class PowerShellService : IPowerShellService
 
     public PowerShellScript GetScriptDetails(string scriptName)
     {
-        var scriptPath = Path.Combine(_scriptsPath, $"{scriptName}.ps1");
-        if (!File.Exists(scriptPath))
-            throw new FileNotFoundException($"Script {scriptName} not found.");
+        var scriptPath = ResolveScriptPath(scriptName);
 
         return new PowerShellScript
         {
@@ -111,9 +109,8 @@ public class PowerShellService : IPowerShellService
 
     public async Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken)
     {
-        var scriptPath = Path.Combine(_scriptsPath, $"{scriptName}.ps1");
-        if (!File.Exists(scriptPath))
-            throw new FileNotFoundException($"Script {scriptName} not found.");
+        var scriptPath = ResolveScriptPath(scriptName);
+        ValidateParameters(scriptPath, parameters);
 
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
@@ -163,14 +160,13 @@ public class PowerShellService : IPowerShellService
 
     public async Task<ScriptExecutionResult> ExecuteScriptAsync(string scriptName, Dictionary<string, string> parameters)
     {
-        var scriptPath = Path.Combine(_scriptsPath, $"{scriptName}.ps1");
-        if (!File.Exists(scriptPath))
-            throw new FileNotFoundException($"Script {scriptName} not found.");
-
         var result = new ScriptExecutionResult();
 
         try
         {
+            var scriptPath = ResolveScriptPath(scriptName);
+            ValidateParameters(scriptPath, parameters);
+
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "powershell.exe",
@@ -219,5 +215,39 @@ public class PowerShellService : IPowerShellService
         }
 
         return result;
+    }
+
+    private string ResolveScriptPath(string scriptName)
+    {
+        if (string.IsNullOrWhiteSpace(scriptName) ||
+            Path.IsPathRooted(scriptName) ||
+            !string.Equals(scriptName, Path.GetFileName(scriptName), StringComparison.Ordinal) ||
+            scriptName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new FileNotFoundException($"Script {scriptName} not found.");
+        }
+
+        var scriptsRoot = Path.GetFullPath(_scriptsPath);
+        var scriptPath = Path.GetFullPath(Path.Combine(scriptsRoot, $"{scriptName}.ps1"));
+        if (!scriptPath.StartsWith(scriptsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(scriptPath))
+        {
+            throw new FileNotFoundException($"Script {scriptName} not found.");
+        }
+
+        return scriptPath;
+    }
+
+    private void ValidateParameters(string scriptPath, Dictionary<string, string> parameters)
+    {
+        var allowedParameterNames = GetScriptParameters(scriptPath)
+            .Select(parameter => parameter.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var unexpectedParameter = parameters.Keys.FirstOrDefault(name => !allowedParameterNames.Contains(name));
+        if (unexpectedParameter is not null)
+        {
+            throw new ArgumentException($"Parameter '{unexpectedParameter}' is not defined by the script.", nameof(parameters));
+        }
     }
 }
