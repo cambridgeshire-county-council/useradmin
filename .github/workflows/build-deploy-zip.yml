@@ -1,6 +1,9 @@
 name: Build Deploy Zip
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -33,9 +36,11 @@ jobs:
         run: dotnet build PSScriptWebApp.csproj -c Release --no-restore
 
       - name: Publish
+        if: github.event_name != 'pull_request'
         run: dotnet publish PSScriptWebApp.csproj -c Release --no-build -o out
 
       - name: Create zip and checksum
+        if: github.event_name != 'pull_request'
         id: package
         shell: pwsh
         run: |
@@ -50,6 +55,7 @@ jobs:
           "zip_name=$zipName" | Out-File $env:GITHUB_OUTPUT -Append
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: webapp-zip
