@@ -9,6 +9,7 @@
     <div class="card mt-4">
         <div class="card-body">
             <form id="scriptForm">
+                @Html.AntiForgeryToken()
                 @foreach (var param in Model.Parameters)
                 {
                     <div class="mb-3">
@@ -58,7 +59,8 @@
 
             const form = e.target;
             const parameters = {};
-            const inputs = form.querySelectorAll('input');
+            const inputs = form.querySelectorAll('input:not([name="__RequestVerificationToken"])');
+            const antiforgeryToken = form.querySelector('input[name="__RequestVerificationToken"]').value;
             const runBtn = document.getElementById('runBtn');
             const loadingIndicator = document.getElementById('loadingIndicator');
             const outputDiv = document.getElementById('output');
@@ -77,10 +79,16 @@
             }
 
             const url = new URL('@Url.Action("Stream", "Scripts", new { name = Model.Name })', window.location.origin);
-            Object.entries(parameters).forEach(([k, v]) => url.searchParams.set(k, v));
 
             try {
-                const response = await fetch(url.toString(), { method: 'GET' });
+                const response = await fetch(url.toString(), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': antiforgeryToken
+                    },
+                    body: JSON.stringify(parameters)
+                });
 
                 if (!response.ok) {
                     outputDiv.style.display = 'block';

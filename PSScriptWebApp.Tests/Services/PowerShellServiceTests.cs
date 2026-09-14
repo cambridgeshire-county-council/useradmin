@@ -58,6 +58,19 @@ public class PowerShellServiceTests
         Assert.Contains("Missing", exception.Message);
     }
 
+    [Theory]
+    [InlineData("../Outside")]
+    [InlineData("..\\Outside")]
+    [InlineData("C:\\Outside")]
+    [InlineData("/Outside")]
+    public void GetScriptDetails_RejectsTraversalAndRootedNames(string scriptName)
+    {
+        using var testEnvironment = new ScriptTestEnvironment();
+        var service = new PowerShellService(testEnvironment.CreateWebHostEnvironment());
+
+        Assert.Throws<FileNotFoundException>(() => service.GetScriptDetails(scriptName));
+    }
+
     [Fact]
     public async Task ExecuteScriptAsync_ReturnsOutputForExistingScript()
     {
@@ -89,5 +102,23 @@ public class PowerShellServiceTests
         Assert.True(result.Success);
         Assert.Contains("Message: Hello", result.Output);
         Assert.True(string.IsNullOrWhiteSpace(result.Error));
+    }
+
+    [Fact]
+    public async Task ExecuteScriptAsync_RejectsUnexpectedParameters()
+    {
+        using var testEnvironment = new ScriptTestEnvironment();
+        testEnvironment.WriteScript(
+            "Echo",
+            "param([string]$Message) Write-Output $Message");
+
+        var service = new PowerShellService(testEnvironment.CreateWebHostEnvironment());
+
+        var result = await service.ExecuteScriptAsync(
+            "Echo",
+            new Dictionary<string, string> { ["Unexpected"] = "value" });
+
+        Assert.False(result.Success);
+        Assert.Contains("Unexpected", result.Error);
     }
 }
