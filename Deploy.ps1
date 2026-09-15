@@ -15,10 +15,10 @@ function ConvertTo-NormalizedPath([string]$Path) {
   return [IO.Path]::GetFullPath($Path).TrimEnd('\')
 }
 
-function Test-IsChildPath([string]$Child, [string]$Parent) {
+function Test-IsSameOrChildPath([string]$Child, [string]$Parent) {
   $childPath = ConvertTo-NormalizedPath $Child
   $parentPath = ConvertTo-NormalizedPath $Parent
-  return $childPath.StartsWith($parentPath + '\', [StringComparison]::OrdinalIgnoreCase)
+  return $childPath.Equals($parentPath, [StringComparison]::OrdinalIgnoreCase) -or $childPath.StartsWith($parentPath + '\', [StringComparison]::OrdinalIgnoreCase)
 }
 
 function Test-ProductionConfiguration {
@@ -29,7 +29,7 @@ function Test-ProductionConfiguration {
   $allowedUsers = @($settings.Authorization.AllowedUsers)
   if ($allowedUsers.Count -eq 0 -or $allowedUsers -contains 'CONTOSO\jdoe') { throw "Production Authorization.AllowedUsers is missing, empty, or contains the placeholder." }
   if ([string]::IsNullOrWhiteSpace($AuditRoot) -or -not [IO.Path]::IsPathRooted($AuditRoot)) { throw "AuditLogging.Directory must be an absolute path." }
-  if (Test-IsChildPath $AuditRoot $DeploymentRoot) { throw "AuditLogging.Directory must be outside the replaceable site directory." }
+  if (Test-IsSameOrChildPath $AuditRoot $DeploymentRoot) { throw "AuditLogging.Directory must be outside the replaceable site directory." }
   if (-not (Test-Path $AuditRoot)) { throw "External audit directory does not exist: $AuditRoot" }
   if ([string]::IsNullOrWhiteSpace([string]$settings.PowerShell.ScriptsPath)) { throw "PowerShell.ScriptsPath is missing from production configuration." }
   Write-Host "      Production configuration validated (AllowedUsers count: $($allowedUsers.Count); audit path: $AuditRoot)"
@@ -49,11 +49,12 @@ New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
 $headers = @{ Authorization = "Bearer $Token"; "X-GitHub-Api-Version" = "2022-11-28" }
 
 Write-Host "[2/8] Fetching latest successful workflow run on '$Branch'..."
-$run = if ($RunId) {
-  Invoke-RestMethod -Uri "https://api.github.com/repos/$Owner/$Repo/actions/runs/$RunId" -Headers $headers
+$run = $null
+if ($RunId) {
+  $run = Invoke-RestMethod -Uri "https://api.github.com/repos/$Owner/$Repo/actions/runs/$RunId" -Headers $headers
 } else {
   $runsUrl = "https://api.github.com/repos/$Owner/$Repo/actions/runs?branch=$Branch&status=success&per_page=1"
-  (Invoke-RestMethod -Uri $runsUrl -Headers $headers).workflow_runs[0]
+  $run = (Invoke-RestMethod -Uri $runsUrl -Headers $headers).workflow_runs[0]
 }
 if (-not $run) { throw "No successful workflow run found." }
 if ($run.conclusion -ne 'success' -or $run.head_branch -ne $Branch) { throw "Selected workflow run is not a successful run for '$Branch'." }
@@ -68,7 +69,7 @@ $artifact = (Invoke-RestMethod -Uri $artUrl -Headers $headers).artifacts |
   Select-Object -First 1
 if (-not $artifact) { throw "Artifact webapp-zip not found." }
 $artifactSizeMb = [math]::Round($artifact.size_in_bytes / 1048576, 1)
-Write-Host "      Found artifact id $($artifact.id) ($artifactSizeMb MB)"
+Write-Host ('      Found artifact id {0} ({1} MB)' -f $artifact.id, $artifactSizeMb)
 
 $artifactZip = Join-Path $WorkDir "artifact.zip"
 Write-Host "[4/8] Downloading artifact to: $artifactZip"
@@ -98,24 +99,24 @@ $validPreviousApplication = (Test-Path (Join-Path $SitePath 'PSScriptWebApp.dll'
 if (Test-Path $liveAppSettings) {
   $liveSettings = Get-Content $liveAppSettings -Raw | ConvertFrom-Json
   Test-ProductionConfiguration -SettingsPath $liveAppSettings -AuditRoot ([string]$liveSettings.AuditLogging.Directory) -DeploymentRoot $SitePath
-} else {
+}
+if ((Test-Path $liveAppSettings) -eq $false) {
   throw "Production configuration validation failed before IIS changes: appsettings.json is missing."
 }
-if (Test-Path $SitePath) {
+$siteExists = Test-Path $SitePath
+if ($siteExists) {
   Write-Host "[7/8] Backing up current site from $SitePath to $backup..."
   New-Item -ItemType Directory -Path $backup -Force | Out-Null
   Copy-Item "$SitePath\*" $backup -Recurse -Force
   Write-Host "      Backup complete."
-} else {
-  Write-Host "[7/8] No existing site at $SitePath — skipping backup."
 }
-
 Write-Host "[8/8] Deploying..."
 Import-Module WebAdministration
 if ((Get-WebAppPoolState -Name $AppPool).Value -ne "Stopped") {
   Write-Host "      Stopping app pool '$AppPool'..."
   Stop-WebAppPool -Name $AppPool
-} else {
+}
+if ((Get-WebAppPoolState -Name $AppPool).Value -eq "Stopped") {
   Write-Host "      App pool '$AppPool' is already stopped."
 }
 
@@ -146,14 +147,20 @@ try {
   Write-Host "=== Deploy complete ===" -ForegroundColor Green
 }
 catch {
-  Write-Warning "Deploy failed. Attempting rollback from $backup..."
+  Write-Warning ('Deploy failed. Attempting rollback from {0}...' -f $backup)
   if ($validPreviousApplication -and (Test-Path $backup)) {
     if (Test-Path $SitePath) { Remove-Item "$SitePath\*" -Recurse -Force }
     Write-Host "      Copying $backup to $SitePath..."
     Copy-Item "$backup\*" $SitePath -Recurse -Force
     Write-Host "      Rollback complete."
-  } else {
-    Write-Warning "First deployment failed; no valid previous application exists. Leaving app pool stopped."
+  }
+  if (-not ($validPreviousApplication -and (Test-Path $backup))) {
+    Write-Warning 'First deployment failed; no valid previous application exists. Leaving app pool stopped.'
+    if (Test-Path $preservedAppSettings) {
+      New-Item -ItemType Directory -Path $SitePath -Force | Out-Null
+      Copy-Item $preservedAppSettings (Join-Path $SitePath 'appsettings.json') -Force
+      Write-Host '      Preserved production appsettings.json restored.'
+    }
     if ((Get-WebAppPoolState -Name $AppPool).Value -ne "Stopped") {
       Stop-WebAppPool -Name $AppPool
     }
