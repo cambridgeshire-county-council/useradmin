@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using System.Text;
 using PSScriptWebApp.Controllers;
 using PSScriptWebApp.Models;
 using PSScriptWebApp.Services;
@@ -78,6 +79,24 @@ public class ScriptsControllerTests
     }
 
     [Fact]
+    public void CatalogueDefinitionsClassifyAllOperationalScripts()
+    {
+        var definitions = GenericScriptCatalogue.GetDefinitions().ToDictionary(item => item.Name);
+
+        Assert.Equal(9, definitions.Count);
+        Assert.Equal(GenericScriptRisk.ReadOnly, definitions["Search"].Risk);
+        Assert.Equal(GenericScriptRisk.ReadOnly, definitions["GetUser"].Risk);
+        Assert.Equal(GenericScriptRisk.ReadOnly, definitions["SearchForDeletion"].Risk);
+        Assert.Equal(GenericScriptRisk.ReadOnly, definitions["GetMarkedForDeletion"].Risk);
+        Assert.Equal(GenericScriptRisk.ReadOnly, definitions["GetUserNotes"].Risk);
+        Assert.Equal(GenericScriptRisk.Mutation, definitions["NewUser"].Risk);
+        Assert.Equal(GenericScriptRisk.Mutation, definitions["MarkForDeletion"].Risk);
+        Assert.Equal(GenericScriptRisk.Mutation, definitions["UnmarkForDeletion"].Risk);
+        Assert.Equal(GenericScriptRisk.Destructive, definitions["DeleteUser"].Risk);
+        Assert.True(definitions["NewUser"].RequiresSensitiveOutputSanitisation);
+    }
+
+    [Fact]
     public async Task Execute_ReturnsJsonResultFromService()
     {
         var expectedResult = new ScriptExecutionResult
@@ -118,6 +137,111 @@ public class ScriptsControllerTests
     }
 
     [Fact]
+    public async Task Execute_ReadOnlyScriptDoesNotRequireConfirmation()
+    {
+        var stub = new StubPowerShellService { ExecutionResult = new ScriptExecutionResult { Success = true } };
+        var controller = CreateController(stub);
+
+        var result = await controller.Execute("Search", new Dictionary<string, string>());
+
+        Assert.IsType<JsonResult>(result);
+        Assert.True(stub.ExecuteCalled);
+    }
+
+    [Theory]
+    [InlineData("MarkForDeletion")]
+    [InlineData("DeleteUser")]
+    public async Task Execute_MutationWithoutConfirmationDoesNotInvokeService(string scriptName)
+    {
+        var stub = new StubPowerShellService();
+        var controller = CreateController(stub);
+
+        var result = await controller.Execute(scriptName, new Dictionary<string, string>());
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.False(stub.ExecuteCalled);
+    }
+
+    [Fact]
+    public async Task Execute_MutationWithConfirmationInvokesService()
+    {
+        var stub = new StubPowerShellService { ExecutionResult = new ScriptExecutionResult { Success = true } };
+        var controller = CreateController(stub);
+        controller.Request.Headers["X-UserAdmin-Confirm"] = "MarkForDeletion";
+
+        await controller.Execute("MarkForDeletion", new Dictionary<string, string>());
+
+        Assert.True(stub.ExecuteCalled);
+        Assert.Equal("MarkForDeletion", stub.LastScriptName);
+    }
+
+    [Fact]
+    public async Task Execute_NewUserSanitisesGeneratedPassword()
+    {
+        var stub = new StubPowerShellService
+        {
+            ExecutionResult = new ScriptExecutionResult
+            {
+                Success = true,
+                Output = "Generated Password: SuperSecretExample123!"
+            }
+        };
+        var controller = CreateController(stub);
+        controller.Request.Headers["X-UserAdmin-Confirm"] = "NewUser";
+
+        var result = await controller.Execute("NewUser", new Dictionary<string, string>());
+
+        var json = Assert.IsType<JsonResult>(result);
+        var execution = Assert.IsType<ScriptExecutionResult>(json.Value);
+        Assert.Contains("Generated Password: [hidden]", execution.Output);
+        Assert.DoesNotContain("SuperSecretExample123!", execution.Output);
+    }
+
+    [Fact]
+    public async Task Stream_MutationWithoutConfirmationDoesNotInvokeService()
+    {
+        var stub = new StubPowerShellService();
+        var controller = CreateController(stub);
+
+        await controller.Stream("MarkForDeletion", new Dictionary<string, string>(), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, controller.Response.StatusCode);
+        Assert.False(stub.StreamCalled);
+    }
+
+    [Fact]
+    public async Task Stream_MutationWithConfirmationInvokesService()
+    {
+        var stub = new StubPowerShellService();
+        var controller = CreateController(stub);
+        controller.Request.Headers["X-UserAdmin-Confirm"] = "MarkForDeletion";
+
+        await controller.Stream("MarkForDeletion", new Dictionary<string, string>(), CancellationToken.None);
+
+        Assert.True(stub.StreamCalled);
+        Assert.Equal("MarkForDeletion", stub.LastScriptName);
+    }
+
+    [Fact]
+    public async Task Stream_NewUserSanitisesGeneratedPassword()
+    {
+        var stub = new StubPowerShellService
+        {
+            StreamOutput = "data:{\"type\":\"line\",\"text\":\"Generated Password: SuperSecretExample123!\"}\n\n"
+        };
+        var controller = CreateController(stub);
+        controller.Request.Headers["X-UserAdmin-Confirm"] = "NewUser";
+
+        await controller.Stream("NewUser", new Dictionary<string, string>(), CancellationToken.None);
+
+        controller.Response.Body.Position = 0;
+        using var reader = new StreamReader(controller.Response.Body, Encoding.UTF8, leaveOpen: true);
+        var output = await reader.ReadToEndAsync();
+        Assert.Contains("Generated Password: [hidden]", output);
+        Assert.DoesNotContain("SuperSecretExample123!", output);
+    }
+
+    [Fact]
     public async Task Stream_ReturnsNotFoundWithoutCallingServiceForNonCataloguedScript()
     {
         var stub = new StubPowerShellService();
@@ -153,6 +277,19 @@ public class ScriptsControllerTests
         Assert.NotNull(streamMethod.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
     }
 
+    private static ScriptsController CreateController(StubPowerShellService stub)
+    {
+        var controller = new ScriptsController(stub)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+        controller.Response.Body = new MemoryStream();
+        return controller;
+    }
+
     private sealed class StubPowerShellService : IPowerShellService
     {
         public List<PowerShellScript> Scripts { get; set; } = new();
@@ -162,6 +299,7 @@ public class ScriptsControllerTests
         public bool ExecuteCalled { get; private set; }
         public bool StreamCalled { get; private set; }
         public string? LastScriptName { get; private set; }
+        public string? StreamOutput { get; set; }
 
         public List<PowerShellScript> GetAvailableScripts() => Scripts;
 
@@ -189,7 +327,7 @@ public class ScriptsControllerTests
         {
             StreamCalled = true;
             LastScriptName = scriptName;
-            return Task.CompletedTask;
+            return StreamOutput is null ? Task.CompletedTask : onLine(StreamOutput);
         }
     }
 }
