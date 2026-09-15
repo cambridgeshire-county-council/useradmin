@@ -1,6 +1,10 @@
-# UserAdmin Toolbox
+# UserAdmin
 
-An ASP.NET Core MVC (net9.0) web app that lets users run PowerShell scripts from a browser instead of a terminal.
+An internal identity-administration application for approved Service Desk operations. UserAdmin provides controlled browser workflows for common account tasks and a reviewed catalogue of operational PowerShell scripts.
+
+## Product identity
+
+The user-facing product name is **UserAdmin**, with the descriptor **Identity administration**. The interface uses a restrained ink-blue visual system and a geometric UA mark. Safety states remain semantic: red is reserved for destructive actions, amber for caution, and green for confirmed success.
 
 It works by:
 - Exposing an explicit reviewed operational catalogue from the `scripts/` folder.
@@ -37,9 +41,9 @@ Changes are best made by assigning work to the GitHub Copilot coding agent rathe
    ```
    Make the following UI changes to PSScriptWebApp:
 
-   1. Change the visible app name in the GUI from "PSScriptRunner" to "UserAdmin Toolbox".
+   1. Change the visible app name in the GUI from "PSScriptRunner" to "UserAdmin".
    2. Remove "Home" from the top navigation bar.
-   3. Rename "Scripts" in the top navigation bar to "Powershell Script list" and move it to 
+   3. Rename "Scripts" in the top navigation bar to "Operational scripts" and move it to
       the last position, after all other nav items.
    4. On the Home view, add links to "New" and "Search" (and any other relevant script
       actions) so users can jump straight to them without going via the Scripts list.
@@ -60,7 +64,7 @@ Changes are best made by assigning work to the GitHub Copilot coding agent rathe
       (e.g. named "Password", "Token", "Secret") — redact these as "*****" in the log.
    3. Write logs as plain text to a log/ folder under the content root, one file per day
       (e.g. log/2026-08-20.txt), so files don't grow unbounded.
-   4. Add a "Logs" page (nav item, after "Powershell Script list") that lists available log
+   4. Add a "Logs" page (nav item, after "Operational scripts") that lists available log
       dates and displays the selected day's entries in a readable table, newest first.
    5. Restrict the Logs page to the same authorization policy already used elsewhere in the
       app — do not expose it anonymously.
