@@ -8,14 +8,16 @@ namespace PSScriptWebApp.Controllers;
 public class UsersController : Controller
 {
     private readonly IPowerShellService _powerShellService;
+    private readonly IExecutionAuditContextAccessor? _auditContext;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public UsersController(IPowerShellService powerShellService)
+    public UsersController(IPowerShellService powerShellService, IExecutionAuditContextAccessor? auditContext = null)
     {
         _powerShellService = powerShellService;
+        _auditContext = auditContext;
     }
 
     [HttpGet]
@@ -28,6 +30,7 @@ public class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> New(NewUserFormModel model)
     {
+        using var auditContext = PushDedicatedAuditContext();
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -53,6 +56,7 @@ public class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task StreamNew([FromBody] NewUserFormModel? model, CancellationToken cancellationToken)
     {
+        using var auditContext = PushDedicatedAuditContext();
         if (model is null || !ModelState.IsValid)
         {
             Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -93,6 +97,7 @@ public class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Search(UserSearchViewModel model)
     {
+        using var auditContext = PushDedicatedAuditContext();
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -128,6 +133,7 @@ public class UsersController : Controller
     [HttpGet]
     public async Task<IActionResult> Details(string samAccountName)
     {
+        using var auditContext = PushDedicatedAuditContext();
         if (string.IsNullOrWhiteSpace(samAccountName))
         {
             return BadRequest();
@@ -176,6 +182,7 @@ public class UsersController : Controller
     [HttpGet]
     public async Task<IActionResult> MarkForDeletion(string? search, string? status)
     {
+        using var auditContext = PushDedicatedAuditContext();
         var model = new DeletionSearchViewModel
         {
             Search = search,
@@ -211,6 +218,7 @@ public class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> MarkForDeletion(DeletionSearchViewModel model)
     {
+        using var auditContext = PushDedicatedAuditContext();
         if (string.IsNullOrWhiteSpace(model.Search))
         {
             return View(model);
@@ -242,6 +250,7 @@ public class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> MarkUser(string samAccountName, string? returnSearch, string? notes)
     {
+        using var auditContext = PushDedicatedAuditContext();
         var result = await _powerShellService.ExecuteScriptAsync(
             "MarkForDeletion",
             new Dictionary<string, string>
@@ -261,6 +270,7 @@ public class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UnmarkUser(string samAccountName, string? returnSearch, string? notes)
     {
+        using var auditContext = PushDedicatedAuditContext();
         var result = await _powerShellService.ExecuteScriptAsync(
             "UnmarkForDeletion",
             new Dictionary<string, string>
@@ -279,6 +289,7 @@ public class UsersController : Controller
     [HttpGet]
     public async Task<IActionResult> GetUserNotes(string samAccountName)
     {
+        using var auditContext = PushDedicatedAuditContext();
         if (string.IsNullOrWhiteSpace(samAccountName))
         {
             return BadRequest();
@@ -311,6 +322,7 @@ public class UsersController : Controller
     [HttpGet]
     public async Task<IActionResult> MarkedForDeletion(string filter = "all", string? status = null, string? error = null)
     {
+        using var auditContext = PushDedicatedAuditContext();
         var model = new MarkedForDeletionViewModel
         {
             Filter = filter,
@@ -351,6 +363,7 @@ public class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteMarked(List<string>? samAccountNames, string filter = "all")
     {
+        using var auditContext = PushDedicatedAuditContext();
         if (samAccountNames is null || samAccountNames.Count == 0)
         {
             return RedirectToAction(nameof(MarkedForDeletion), new
@@ -461,6 +474,13 @@ public class UsersController : Controller
             ["Company"] = model.Company,
             ["Manager"] = model.Manager ?? string.Empty
         };
+    }
+
+    private IDisposable? PushDedicatedAuditContext()
+    {
+        return _auditContext?.Push(new ExecutionAuditContext(
+            "Dedicated",
+            User.Identity?.Name ?? "unknown"));
     }
 
     private static List<T> ParseListOutput<T>(string? output)

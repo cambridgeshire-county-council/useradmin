@@ -7,11 +7,15 @@ namespace PSScriptWebApp.Controllers;
 public class ScriptsController : Controller
 {
     private readonly IPowerShellService _powerShellService;
+    private readonly IExecutionAuditService? _auditService;
+    private readonly IExecutionAuditContextAccessor? _auditContext;
     private const string ConfirmationHeader = "X-UserAdmin-Confirm";
 
-    public ScriptsController(IPowerShellService powerShellService)
+    public ScriptsController(IPowerShellService powerShellService, IExecutionAuditService? auditService = null, IExecutionAuditContextAccessor? auditContext = null)
     {
         _powerShellService = powerShellService;
+        _auditService = auditService;
+        _auditContext = auditContext;
     }
 
     public IActionResult Index()
@@ -47,16 +51,19 @@ public class ScriptsController : Controller
     {
         if (!GenericScriptCatalogue.TryGetDefinition(name, out var definition))
         {
+            await AuditRejectedAsync(name, "Execute", parameters);
             return NotFound();
         }
 
         if (!HasRequiredConfirmation(definition))
         {
+            await AuditRejectedAsync(definition.Name, "Execute", parameters);
             return BadRequest("Explicit operator confirmation is required for this script.");
         }
 
         try
         {
+            using var auditContext = PushGenericAuditContext();
             var result = await _powerShellService.ExecuteScriptAsync(definition.Name, parameters ?? new Dictionary<string, string>());
             if (definition.RequiresSensitiveOutputSanitisation)
             {
@@ -77,12 +84,14 @@ public class ScriptsController : Controller
     {
         if (!GenericScriptCatalogue.TryGetDefinition(name, out var definition))
         {
+            await AuditRejectedAsync(name, "Stream", parameters);
             Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
 
         if (!HasRequiredConfirmation(definition))
         {
+            await AuditRejectedAsync(definition.Name, "Stream", parameters);
             Response.StatusCode = StatusCodes.Status400BadRequest;
             return;
         }
@@ -93,6 +102,7 @@ public class ScriptsController : Controller
 
         try
         {
+            using var auditContext = PushGenericAuditContext();
             await _powerShellService.StreamScriptOutputAsync(definition.Name, parameters ?? new Dictionary<string, string>(), async line =>
             {
                 if (definition.RequiresSensitiveOutputSanitisation)
@@ -135,5 +145,36 @@ public class ScriptsController : Controller
         }
 
         return script;
+    }
+
+    private IDisposable? PushGenericAuditContext()
+    {
+        return _auditContext?.Push(new ExecutionAuditContext(
+            "Generic",
+            User.Identity?.Name ?? "unknown"));
+    }
+
+    private async Task AuditRejectedAsync(string scriptName, string mode, Dictionary<string, string>? parameters)
+    {
+        if (_auditService is null)
+            return;
+
+        var target = parameters?.FirstOrDefault(pair =>
+            string.Equals(pair.Key, "SamAccountName", StringComparison.OrdinalIgnoreCase)).Value;
+        await _auditService.WriteAsync(new Models.ExecutionAuditRecord
+        {
+            TimestampUtc = DateTime.UtcNow,
+            EventId = Guid.NewGuid(),
+            Actor = User.Identity?.Name ?? "unknown",
+            ScriptName = scriptName,
+            ExecutionMode = mode,
+            Source = "Generic",
+            Risk = GenericScriptCatalogue.TryGetDefinition(scriptName, out var definition)
+                ? definition.Risk.ToString()
+                : "Unknown",
+            TargetSamAccountName = string.IsNullOrWhiteSpace(target) ? null : target,
+            Outcome = "Rejected",
+            DurationMs = 0
+        });
     }
 }
