@@ -2,27 +2,81 @@
     ViewData["Title"] = "Home";
 }
 
-<div class="py-4">
-    <div class="text-center mb-4">
-        <h1 class="display-4">UserAdmin Toolbox</h1>
-        <p class="lead">Choose a task to jump straight into the user administration tools.</p>
+<div class="home-page">
+    <section class="product-hero" aria-labelledby="page-title">
+        <div class="product-hero-mark" aria-hidden="true">
+            <img src="~/brand/useradmin-mark.svg" alt="" width="72" height="72" />
+        </div>
+        <div>
+            <p class="eyebrow">Identity administration</p>
+            <h1 id="page-title"><span>User</span><strong>Admin</strong></h1>
+            <p class="hero-summary">Create, find and manage user accounts through clear, controlled workflows.</p>
+        </div>
+        <span class="service-badge">Internal service</span>
+    </section>
+
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Choose a task</p>
+            <h2>Account operations</h2>
+        </div>
+        <p>Each action shows what will happen before a change is made.</p>
     </div>
 
-    <div class="row g-3">
-        <div class="col-md-6 col-lg-4">
-            <a class="btn btn-primary w-100" asp-controller="Users" asp-action="New">New User</a>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <a class="btn btn-primary w-100" asp-controller="Users" asp-action="Search">Search Users</a>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <a class="btn btn-outline-secondary w-100" asp-controller="Users" asp-action="MarkForDeletion">Mark for Deletion</a>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <a class="btn btn-outline-secondary w-100" asp-controller="Users" asp-action="MarkedForDeletion">Marked for Deletion</a>
-        </div>
-        <div class="col-md-6 col-lg-4">
-            <a class="btn btn-outline-secondary w-100" asp-controller="Scripts" asp-action="Index">Powershell Script list</a>
-        </div>
+    <div class="task-grid">
+        <a class="task-card task-card-primary" asp-controller="Users" asp-action="New">
+            <span class="task-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+            </span>
+            <span class="task-card-copy">
+                <strong>New user</strong>
+                <span>Create a user account using the approved form.</span>
+            </span>
+            <span class="task-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+
+        <a class="task-card task-card-primary" asp-controller="Users" asp-action="Search">
+            <span class="task-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5" /><path d="m15 15 4 4" /></svg>
+            </span>
+            <span class="task-card-copy">
+                <strong>Search users</strong>
+                <span>Find an account and review its current details.</span>
+            </span>
+            <span class="task-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+
+        <a class="task-card" asp-controller="Users" asp-action="MarkForDeletion">
+            <span class="task-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M7 4v16M7 5h10l-2 3 2 3H7" /></svg>
+            </span>
+            <span class="task-card-copy">
+                <strong>Manage deletion status</strong>
+                <span>Mark or unmark an account for later deletion.</span>
+            </span>
+            <span class="task-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+
+        <a class="task-card task-card-caution" asp-controller="Users" asp-action="MarkedForDeletion">
+            <span class="task-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V5h6v2M8 10v7M12 10v7M16 10v7M6 7l1 13h10l1-13" /></svg>
+            </span>
+            <span class="task-card-copy">
+                <strong>Marked accounts</strong>
+                <span>Review selected accounts before any deletion.</span>
+            </span>
+            <span class="task-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+
+        <a class="task-card task-card-wide" asp-controller="Scripts" asp-action="Index">
+            <span class="task-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m6 8 4 4-4 4M12 16h6" /></svg>
+            </span>
+            <span class="task-card-copy">
+                <strong>Operational scripts</strong>
+                <span>Run a reviewed script from the approved catalogue.</span>
+            </span>
+            <span class="task-arrow" aria-hidden="true">&rarr;</span>
+        </a>
     </div>
 </div>
