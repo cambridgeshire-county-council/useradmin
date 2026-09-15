@@ -5,7 +5,7 @@ This map records current implementation evidence and distinguishes the approved 
 
 | Capability | Current entry and implementation | Inputs / outputs | Reads and mutations | Current dependencies and risk | Tactical treatment | Strategic treatment |
 | --- | --- | --- | --- | --- | --- |
-| New User | `Users/New`; `UsersController.New` and `StreamNew`; `NewUser.ps1` | Identity, UPN, SAM account, address, organization, manager; streamed status and generated password | Creates remote mailbox/user; updates attributes; assigns manager and group membership | AD DS, Exchange management snap-in, local PowerShell/domain host; privileged child process; plaintext password disclosure | Retain the supported hybrid process; validate CCCS923/CCCS653 dependencies, secure execution, close gaps, and test with approved identities. | Typed cloud-native provisioning workflow using Entra/Graph and Exchange Online capabilities; do not return plaintext passwords by default. |
+| New User | `Users/New`; `UsersController.New` and `StreamNew`; `NewUser.ps1` | Identity, UPN, SAM account, address, organization, manager; streamed status and generated password | Creates remote mailbox/user; updates attributes; assigns manager and group membership | AD DS, Exchange management snap-in, local PowerShell/domain host; privileged child process; plaintext password disclosure | Retain the supported hybrid process; validate CCCS923/CCCS659 dependencies, secure execution, close gaps, and test with approved identities. | Typed cloud-native provisioning workflow using Entra/Graph and Exchange Online capabilities; do not return plaintext passwords by default. |
 | Search Users | `Users/Search`; `Search`; `Search.ps1` | Name fragment; JSON name/SAM/UPN/status results | `Get-ADUser` only | AD DS, PowerShell; broad directory read through host identity | Retain AD-backed implementation, secure/test it, and confirm the hybrid source of truth. | Graph/Entra-native `IUserDirectory`. |
 | User Details | search result link to `Users/Details`; `GetUser.ps1` | SAM account; profile and enabled-state JSON | `Get-ADUser` only | AD DS, PowerShell | Retain and test read-only details against current AD/hybrid data. | Graph/Entra-native typed profile query. |
 | Mark for Deletion search | `Users/MarkForDeletion`; `SearchForDeletion.ps1` | Name fragment; users and `extensionAttribute3` state | `Get-ADUser` only | AD DS custom attribute; unclear lifecycle semantics | Retain current workflow while documenting `extensionAttribute3` semantics and testing safely. | Typed deletion-workflow query with explicit lifecycle state. |
@@ -22,7 +22,7 @@ This map records current implementation evidence and distinguishes the approved 
 | Dependency | Current use | Tactical treatment | Strategic treatment |
 | --- | --- | --- | --- |
 | Active Directory Domain Services | user lookup, profile, state marker, notes, deletion | Current dependency to support and secure. | Replace with Graph/Entra-native APIs when authority permits. |
-| Exchange hybrid/on-prem management | `New-RemoteMailbox` and Exchange snap-in | CCCS653 dependency to validate and support. | Exchange Online-native capability or explicit removal decision. |
+| Exchange hybrid/on-prem management | `New-RemoteMailbox` and Exchange snap-in | CCCS659 dependency to validate and support. | Exchange Online-native capability or explicit removal decision. |
 | Local Windows host and PowerShell | process execution, scripts, filesystem demo | Harden and reduce exposure. | Eliminate from primary business path; Azure Function only for a proven narrow need. |
 | Windows Negotiate and `Authorization:AllowedUsers` | browser authentication and allow-list | Retain while current process requires it, with security controls. | Replace with Entra auth and application roles/groups. |
 | appsettings.json | PowerShell path/policy and domain user allow-list | Manage safely on CCCS923. | App Service configuration; Key Vault only for secrets that cannot be removed. |
@@ -44,7 +44,7 @@ Tactical treatment is to retain the current supported hybrid process while valid
 
 ## Current Product Classification
 - Production-intent: dedicated new user, search/details, deletion marking/listing/deletion, notes.
-- Tactical transitional platform: CCCS923/Nutanix, CCCS653/hybrid Exchange, Windows authentication allow-list, process-account privilege, AD attributes as workflow state, generic runner.
+- Tactical transitional platform: CCCS923/Nutanix, CCCS659/hybrid Exchange, Windows authentication allow-list, process-account privilege, AD attributes as workflow state, generic runner.
 - Strategic successor direction: Entra authentication, Graph/M365 APIs, managed identity, typed operations, Azure hosting.
 - Known demo/diagnostic scripts have been removed from the operational repository. The tactical Generic Script List remains transitional and is narrowed by explicit catalogue review; it remains a strategic removal candidate once typed business operations replace it.
 
@@ -58,7 +58,7 @@ Tactical treatment is to retain the current supported hybrid process while valid
 5. Remove demo/test exposure.
 6. Improve audit and logging.
 7. Maintain the .NET 10 LTS runtime baseline.
-8. CCCS923 readiness, including CCCS653/hybrid dependency validation.
+8. CCCS923 readiness, including CCCS659/hybrid dependency validation.
 9. Deploy to CCCS923.
 10. User Admin UAT.
 11. Controlled proof of New User, mark, unmark, and delete with approved test identities.

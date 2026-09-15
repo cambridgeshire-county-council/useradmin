@@ -27,6 +27,10 @@ There are some hard-coded MVC routes that allow better customisation of the inte
 
 The site is deployed as an IIS website on CCCS923. It is accessible at http://uatoolbox.ccc.cambridgeshire.gov.uk (https certificate needs to be added to the server)
 
+### Deployment handover
+
+Server preparation and deployment should begin by running the read-only CCCS923 readiness check and following the deployment gates in [docs/deployment/README.md](docs/deployment/README.md).
+
 ### Pipeline
 
 1. On push to `main`, the `Build Deploy Zip` GitHub Actions workflow (`.github/workflows/build-deploy-zip.yml`) restores, tests, builds, and `dotnet publish`s the app, then uploads a versioned zip + SHA256 checksum as the `webapp-zip` artifact.
