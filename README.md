@@ -3,10 +3,12 @@
 An ASP.NET Core MVC (net9.0) web app that lets users run PowerShell scripts from a browser instead of a terminal.
 
 It works by:
-- Discovering `.ps1` files in the `scripts/` folder.
+- Exposing an explicit reviewed operational catalogue from the `scripts/` folder.
 - Parsing each script's `param(...)` block (via PowerShell AST) to build a dynamic HTML form.
 - Executing the selected script through `powershell.exe` with the submitted parameter values.
 - Returning the script's output/error back to the UI as JSON.
+
+The PowerShell Script List is intentionally retained for the tactical UserAdmin application. A `.ps1` file added to the folder is not exposed automatically; making a new generic script available requires an explicit catalogue change and a reviewed pull request.
 
 There are some hard-coded MVC routes that allow better customisation of the interface, but behind the scenes they are using the PowerShell scripts in the Scripts folder.
 

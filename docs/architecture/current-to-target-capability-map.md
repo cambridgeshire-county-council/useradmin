@@ -14,12 +14,7 @@ This map records current implementation evidence and distinguishes the approved 
 | Marked-for-Deletion list | `Users/MarkedForDeletion`; `GetMarkedForDeletion.ps1` | all/week/month filter; user list | `Get-ADUser` only | AD DS custom attribute and application-side date filter | Retain AD-backed list and validate date/filter behavior. | Query an explicit deletion-workflow store or supported directory state. |
 | Delete User | Delete All Displayed form; `DeleteMarked`; `DeleteUser.ps1` | displayed SAM accounts; count status | `Remove-ADUser -Confirm:$false` per supplied user | irreversible destructive AD operation; bulk action and limited audit/approval | Keep disabled or tightly controlled until approved test identities, confirmation, recovery, and UAT evidence exist. | Explicit typed destructive operation with approval, audit, retention, and tenant-defined semantics. |
 | User notes | modal fetch `GetUserNotes`; `GetUserNotes.ps1` | SAM account; JSON note | `Get-ADUser` `info` only; mark/unmark write same field | AD attribute used as operational note store | Retain only if required by the hybrid process; document privacy and retention. | Dedicated notes/data boundary after ownership and retention decisions. |
-| Generic Script List | `Scripts/Index`, `Details`, `Execute`, `Stream`; `PowerShellService` | parsed arbitrary checked-in script parameters; output/SSE | Executes allow-listed file under host identity | generic privileged code execution; broad authority surface despite POST/CSRF/path/parameter hardening | Restrict/harden and expose only scripts operationally required during tactical support; remove demo exposure. | Remove in favor of typed business operations. |
-| Basic.ps1 | Script List | no input; version output | none external | local PowerShell/runtime diagnostic | Remove from the operational surface. | Remove. |
-| ExampleScript.ps1 | Script List | first/last; greeting | none external | demo wording references account creation but only prints | Remove from the operational surface. | Remove. |
-| TimeDemo.ps1 | Script List | no input; time output after delay | none external | local PowerShell runtime | Remove from the operational surface. | Remove. |
-| dir.ps1 | Script List | no input; local directory listing | reads application-host filesystem | leaks host filesystem context | Remove from the operational surface. | Remove. |
-| Error.ps1 | Script List | no input | intended error path; contains `Write-Ootput` typo | broken/demo behavior | Remove from the operational surface. | Remove. |
+| Generic Script List | `Scripts/Index`, `Details`, `Execute`, `Stream`; `PowerShellService` | parsed parameters for explicitly catalogued operational scripts; output/SSE | Executes reviewed operational scripts under host identity | generic privileged code execution; broad authority surface despite POST/CSRF/path/parameter hardening | Retain for the tactical business process, but expose only the explicit reviewed catalogue; known demo/diagnostic files are removed from the production repository. | Remove in favour of typed business operations. |
 
 ## Current Cross-Cutting Dependencies
 
@@ -50,7 +45,7 @@ Tactical treatment is to retain the current supported hybrid process while valid
 - Production-intent: dedicated new user, search/details, deletion marking/listing/deletion, notes.
 - Tactical transitional platform: CCCS923/Nutanix, CCCS653/hybrid Exchange, Windows authentication allow-list, process-account privilege, AD attributes as workflow state, generic runner.
 - Strategic successor direction: Entra authentication, Graph/M365 APIs, managed identity, typed operations, Azure hosting.
-- Demo/diagnostic/obsolete candidates: Basic, ExampleScript, TimeDemo, `dir`, Error, and the generic Script List once business journeys are replaced.
+- Known demo/diagnostic scripts have been removed from the operational repository. The tactical Generic Script List remains transitional and is narrowed by explicit catalogue review; it remains a strategic removal candidate once typed business operations replace it.
 
 ## Two-Horizon Roadmap
 
