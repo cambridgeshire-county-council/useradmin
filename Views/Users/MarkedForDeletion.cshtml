@@ -34,24 +34,20 @@
 
     @if (Model.Users.Count > 0)
     {
-        <form asp-controller="Users" asp-action="DeleteMarked" method="post" class="mt-4"
-              onsubmit="return confirm('Delete @Model.Users.Count user(s)? This cannot be undone.')">
+        <form id="deleteMarkedForm" asp-controller="Users" asp-action="DeleteMarked" method="post" class="mt-4">
             @Html.AntiForgeryToken()
             <input type="hidden" name="filter" value="@Model.Filter" />
-            @foreach (var user in Model.Users)
-            {
-                <input type="hidden" name="samAccountNames" value="@user.SamAccountName" />
-            }
 
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>@Model.Users.Count user(s) displayed</span>
-                    <button type="submit" class="btn btn-danger btn-sm">Delete All Displayed</button>
+                    <button type="submit" id="deleteSelectedButton" class="btn btn-danger btn-sm" disabled>Delete Selected</button>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-striped mb-0">
                         <thead>
                             <tr>
+                                <th scope="col">Select</th>
                                 <th>Name</th>
                                 <th>SAM Account</th>
                                 <th>UPN</th>
@@ -63,6 +59,10 @@
                         @foreach (var user in Model.Users)
                         {
                             <tr>
+                                <td>
+                                    <input type="checkbox" class="form-check-input js-delete-selection"
+                                           name="samAccountNames" value="@user.SamAccountName" />
+                                </td>
                                 <td>@user.Name</td>
                                 <td>@user.SamAccountName</td>
                                 <td>@user.UserPrincipalName</td>
@@ -81,3 +81,34 @@
         <div class="alert alert-secondary mt-4" role="alert">No accounts are currently marked for deletion.</div>
     }
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('deleteMarkedForm');
+            if (!form) return;
+
+            var checkboxes = Array.from(form.querySelectorAll('.js-delete-selection'));
+            var deleteButton = document.getElementById('deleteSelectedButton');
+
+            function selectedCheckboxes() {
+                return checkboxes.filter(function (checkbox) { return checkbox.checked; });
+            }
+
+            function updateDeleteButton() {
+                deleteButton.disabled = selectedCheckboxes().length === 0;
+            }
+
+            checkboxes.forEach(function (checkbox) {
+                checkbox.addEventListener('change', updateDeleteButton);
+            });
+
+            form.addEventListener('submit', function (event) {
+                var selected = selectedCheckboxes();
+                if (selected.length === 0 || !confirm('Delete ' + selected.length + ' selected account(s)? This cannot be undone.')) {
+                    event.preventDefault();
+                }
+            });
+        })();
+    </script>
+}

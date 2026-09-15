@@ -150,6 +150,83 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task DeleteMarked_EmptySubmissionDoesNotInvokeDeletion()
+    {
+        var stubService = new StubPowerShellService();
+        var controller = new UsersController(stubService);
+
+        var result = await controller.DeleteMarked(new List<string>(), "all");
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.DoesNotContain("DeleteUser", stubService.ExecutedScriptNames);
+    }
+
+    [Fact]
+    public async Task DeleteMarked_DeduplicatesCaseInsensitiveMarkedAccounts()
+    {
+        var stubService = CreateDeletionStub("[{\"samAccountName\":\"ABC123\",\"extensionAttribute3\":\"2026-01-01\"}]");
+        var controller = new UsersController(stubService);
+
+        await controller.DeleteMarked(new List<string> { "abc123", "ABC123", "abc123" });
+
+        Assert.Equal(1, stubService.ExecutedScriptNames.Count(name => name == "DeleteUser"));
+    }
+
+    [Fact]
+    public async Task DeleteMarked_RejectsUnmarkedAccountWithoutDeletingAnyAccount()
+    {
+        var stubService = CreateDeletionStub("[{\"samAccountName\":\"ABC123\",\"extensionAttribute3\":\"2026-01-01\"}]");
+        var controller = new UsersController(stubService);
+
+        var result = await controller.DeleteMarked(new List<string> { "ABC123", "NOTMARKED" });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Contains("not currently marked", redirect.RouteValues!["error"]?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("DeleteUser", stubService.ExecutedScriptNames);
+    }
+
+    [Fact]
+    public async Task DeleteMarked_MalformedMarkedUserOutputFailsClosed()
+    {
+        var stubService = CreateDeletionStub("not-json");
+        var controller = new UsersController(stubService);
+
+        var result = await controller.DeleteMarked(new List<string> { "ABC123" });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Contains("not currently marked", redirect.RouteValues!["error"]?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("DeleteUser", stubService.ExecutedScriptNames);
+    }
+
+    [Fact]
+    public async Task DeleteMarked_ValidatedMarkedAccountsPreserveReporting()
+    {
+        var stubService = CreateDeletionStub("[{\"samAccountName\":\"ABC123\",\"extensionAttribute3\":\"2026-01-01\"},{\"samAccountName\":\"XYZ789\",\"extensionAttribute3\":\"2026-01-02\"}]");
+        var controller = new UsersController(stubService);
+
+        var result = await controller.DeleteMarked(new List<string> { "ABC123", "xyz789" });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("2 user(s) deleted successfully.", redirect.RouteValues!["status"]?.ToString());
+        Assert.Equal(2, stubService.ExecutedScriptNames.Count(name => name == "DeleteUser"));
+    }
+
+    [Fact]
+    public async Task DeleteMarked_PartialFailureUsesErrorOutcome()
+    {
+        var stubService = CreateDeletionStub("[{\"samAccountName\":\"ABC123\",\"extensionAttribute3\":\"2026-01-01\"},{\"samAccountName\":\"XYZ789\",\"extensionAttribute3\":\"2026-01-02\"}]");
+        stubService.DeleteUserResults.Enqueue(new ScriptExecutionResult { Success = true });
+        stubService.DeleteUserResults.Enqueue(new ScriptExecutionResult { Success = false });
+        var controller = new UsersController(stubService);
+
+        var result = await controller.DeleteMarked(new List<string> { "ABC123", "XYZ789" });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("1 deleted, 1 failed.", redirect.RouteValues!["error"]?.ToString());
+        Assert.Null(redirect.RouteValues["status"]);
+    }
+
+    [Fact]
     public async Task Search_Post_ValidModel_ParsesResults()
     {
         var stubService = new StubPowerShellService
@@ -232,6 +309,25 @@ public class UsersControllerTests
         return controller;
     }
 
+    private static StubPowerShellService CreateDeletionStub(string markedUsersOutput)
+    {
+        return new StubPowerShellService
+        {
+            ExecutionResults = new Dictionary<string, ScriptExecutionResult>
+            {
+                ["GetMarkedForDeletion"] = new ScriptExecutionResult
+                {
+                    Success = true,
+                    Output = markedUsersOutput
+                },
+                ["DeleteUser"] = new ScriptExecutionResult
+                {
+                    Success = true
+                }
+            }
+        };
+    }
+
     private static async Task<string> ReadResponseAsync(UsersController controller)
     {
         controller.Response.Body.Position = 0;
@@ -246,6 +342,8 @@ public class UsersControllerTests
         public bool ExecuteCalled { get; private set; }
         public string? LastScriptName { get; private set; }
         public Dictionary<string, string>? LastParameters { get; private set; }
+        public List<string> ExecutedScriptNames { get; } = new();
+        public Queue<ScriptExecutionResult> DeleteUserResults { get; } = new();
         public bool StreamCalled { get; private set; }
         public string? LastStreamScriptName { get; private set; }
         public Dictionary<string, string>? LastStreamParameters { get; private set; }
@@ -261,8 +359,14 @@ public class UsersControllerTests
         public Task<ScriptExecutionResult> ExecuteScriptAsync(string scriptName, Dictionary<string, string> parameters)
         {
             ExecuteCalled = true;
+            ExecutedScriptNames.Add(scriptName);
             LastScriptName = scriptName;
             LastParameters = parameters;
+            if (scriptName == "DeleteUser" && DeleteUserResults.Count > 0)
+            {
+                return Task.FromResult(DeleteUserResults.Dequeue());
+            }
+
             if (ExecutionResults.TryGetValue(scriptName, out var scriptResult))
             {
                 return Task.FromResult(scriptResult);
