@@ -1,7 +1,7 @@
 # Copilot Instructions for PSScriptWebApp
 
 ## Project Purpose
-PSScriptWebApp is an ASP.NET Core MVC web app (net9.0) that:
+PSScriptWebApp is an ASP.NET Core MVC web app (net10.0) that:
 - Lists PowerShell scripts from the `scripts/` folder.
 - Reads each script's `param(...)` block to build a dynamic HTML form.
 - Executes a selected script through `powershell.exe` with user-provided parameter values.

@@ -1,5 +1,7 @@
 # UserAdmin
 
+UserAdmin targets .NET 10 LTS. The CCCS923 deployment target will require the matching ASP.NET Core Hosting Bundle/runtime; server installation will be verified in the next deployment-readiness increment.
+
 An internal identity-administration application for approved Service Desk operations. UserAdmin provides controlled browser workflows for common account tasks and a reviewed catalogue of operational PowerShell scripts.
 
 ## Product identity
