@@ -310,9 +310,14 @@ public class UsersController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> MarkedForDeletion(string filter = "all", string? status = null)
+    public async Task<IActionResult> MarkedForDeletion(string filter = "all", string? status = null, string? error = null)
     {
-        var model = new MarkedForDeletionViewModel { Filter = filter, StatusMessage = status };
+        var model = new MarkedForDeletionViewModel
+        {
+            Filter = filter,
+            StatusMessage = status,
+            Error = error
+        };
 
         var result = await _powerShellService.ExecuteScriptAsync(
             "GetMarkedForDeletion",
@@ -352,7 +357,7 @@ public class UsersController : Controller
             return RedirectToAction(nameof(MarkedForDeletion), new
             {
                 filter,
-                status = "No accounts were selected for deletion."
+                error = "No accounts were selected for deletion."
             });
         }
 
@@ -366,7 +371,7 @@ public class UsersController : Controller
             return RedirectToAction(nameof(MarkedForDeletion), new
             {
                 filter,
-                status = "No accounts were selected for deletion."
+                error = "No accounts were selected for deletion."
             });
         }
 
@@ -376,7 +381,7 @@ public class UsersController : Controller
             return RedirectToAction(nameof(MarkedForDeletion), new
             {
                 filter,
-                status = "Deletion request rejected because one or more accounts are not currently marked for deletion."
+                error = "Deletion request rejected because one or more accounts are not currently marked for deletion."
             });
         }
 
@@ -393,11 +398,20 @@ public class UsersController : Controller
             else failed++;
         }
 
-        var status = failed == 0
-            ? $"{succeeded} user(s) deleted successfully."
-            : $"{succeeded} deleted, {failed} failed.";
+        if (failed > 0)
+        {
+            return RedirectToAction(nameof(MarkedForDeletion), new
+            {
+                filter,
+                error = $"{succeeded} deleted, {failed} failed."
+            });
+        }
 
-        return RedirectToAction(nameof(MarkedForDeletion), new { filter, status });
+        return RedirectToAction(nameof(MarkedForDeletion), new
+        {
+            filter,
+            status = $"{succeeded} user(s) deleted successfully."
+        });
     }
 
     private async Task<HashSet<string>?> GetCurrentlyMarkedAccountsAsync()

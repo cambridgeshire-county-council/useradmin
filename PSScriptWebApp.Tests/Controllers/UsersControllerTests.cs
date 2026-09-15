@@ -181,7 +181,7 @@ public class UsersControllerTests
         var result = await controller.DeleteMarked(new List<string> { "ABC123", "NOTMARKED" });
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Contains("not currently marked", redirect.RouteValues!["status"]?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not currently marked", redirect.RouteValues!["error"]?.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("DeleteUser", stubService.ExecutedScriptNames);
     }
 
@@ -194,7 +194,7 @@ public class UsersControllerTests
         var result = await controller.DeleteMarked(new List<string> { "ABC123" });
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Contains("not currently marked", redirect.RouteValues!["status"]?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not currently marked", redirect.RouteValues!["error"]?.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("DeleteUser", stubService.ExecutedScriptNames);
     }
 
@@ -209,6 +209,21 @@ public class UsersControllerTests
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("2 user(s) deleted successfully.", redirect.RouteValues!["status"]?.ToString());
         Assert.Equal(2, stubService.ExecutedScriptNames.Count(name => name == "DeleteUser"));
+    }
+
+    [Fact]
+    public async Task DeleteMarked_PartialFailureUsesErrorOutcome()
+    {
+        var stubService = CreateDeletionStub("[{\"samAccountName\":\"ABC123\",\"extensionAttribute3\":\"2026-01-01\"},{\"samAccountName\":\"XYZ789\",\"extensionAttribute3\":\"2026-01-02\"}]");
+        stubService.DeleteUserResults.Enqueue(new ScriptExecutionResult { Success = true });
+        stubService.DeleteUserResults.Enqueue(new ScriptExecutionResult { Success = false });
+        var controller = new UsersController(stubService);
+
+        var result = await controller.DeleteMarked(new List<string> { "ABC123", "XYZ789" });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("1 deleted, 1 failed.", redirect.RouteValues!["error"]?.ToString());
+        Assert.Null(redirect.RouteValues["status"]);
     }
 
     [Fact]
@@ -328,6 +343,7 @@ public class UsersControllerTests
         public string? LastScriptName { get; private set; }
         public Dictionary<string, string>? LastParameters { get; private set; }
         public List<string> ExecutedScriptNames { get; } = new();
+        public Queue<ScriptExecutionResult> DeleteUserResults { get; } = new();
         public bool StreamCalled { get; private set; }
         public string? LastStreamScriptName { get; private set; }
         public Dictionary<string, string>? LastStreamParameters { get; private set; }
@@ -346,6 +362,11 @@ public class UsersControllerTests
             ExecutedScriptNames.Add(scriptName);
             LastScriptName = scriptName;
             LastParameters = parameters;
+            if (scriptName == "DeleteUser" && DeleteUserResults.Count > 0)
+            {
+                return Task.FromResult(DeleteUserResults.Dequeue());
+            }
+
             if (ExecutionResults.TryGetValue(scriptName, out var scriptResult))
             {
                 return Task.FromResult(scriptResult);
