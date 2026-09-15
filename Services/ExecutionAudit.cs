@@ -126,11 +126,22 @@ public sealed class AuditingPowerShellService : IPowerShellService
         var audit = CreateRecord(scriptName, "Stream", parameters);
         var stopwatch = Stopwatch.StartNew();
         await _audit.WriteAsync(Clone(audit));
+        bool? streamedSuccess = null;
 
         try
         {
-            await _inner.StreamScriptOutputAsync(scriptName, parameters, onLine, cancellationToken);
-            audit.Outcome = "Succeeded";
+            async Task ForwardStreamEventAsync(string line)
+            {
+                if (TryReadDoneSuccess(line, out var success))
+                {
+                    streamedSuccess = success;
+                }
+
+                await onLine(line);
+            }
+
+            await _inner.StreamScriptOutputAsync(scriptName, parameters, ForwardStreamEventAsync, cancellationToken);
+            audit.Outcome = streamedSuccess == true ? "Succeeded" : "Failed";
         }
         catch (OperationCanceledException)
         {
@@ -185,4 +196,31 @@ public sealed class AuditingPowerShellService : IPowerShellService
         Outcome = record.Outcome,
         DurationMs = record.DurationMs
     };
+
+    private static bool TryReadDoneSuccess(string line, out bool success)
+    {
+        success = false;
+        if (!line.StartsWith("data:", StringComparison.Ordinal))
+            return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(line["data:".Length..].Trim());
+            var root = document.RootElement;
+            if (!root.TryGetProperty("type", out var type) ||
+                !string.Equals(type.GetString(), "done", StringComparison.OrdinalIgnoreCase) ||
+                !root.TryGetProperty("success", out var successProperty) ||
+                successProperty.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                return false;
+            }
+
+            success = successProperty.GetBoolean();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 }

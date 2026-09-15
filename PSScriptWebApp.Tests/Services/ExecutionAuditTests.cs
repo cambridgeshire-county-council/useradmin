@@ -77,6 +77,43 @@ public class ExecutionAuditTests
     }
 
     [Fact]
+    public async Task AuditingServiceRecordsSuccessfulStreamCompletionAndForwardsEvent()
+    {
+        var audit = new RecordingAuditService();
+        var inner = new StubPowerShellService
+        {
+            StreamOutput = "data:{\"type\":\"done\",\"success\":true}\n\n"
+        };
+        var service = new AuditingPowerShellService(inner, audit, new ExecutionAuditContextAccessor());
+        var forwarded = new List<string>();
+
+        await service.StreamScriptOutputAsync("Search", new Dictionary<string, string>(), line =>
+        {
+            forwarded.Add(line);
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+
+        Assert.Equal("data:{\"type\":\"done\",\"success\":true}\n\n", Assert.Single(forwarded));
+        Assert.Contains(audit.Records, record => record.Outcome == "Succeeded");
+    }
+
+    [Fact]
+    public async Task AuditingServiceRecordsFailedStreamCompletion()
+    {
+        var audit = new RecordingAuditService();
+        var inner = new StubPowerShellService
+        {
+            StreamOutput = "data:{\"type\":\"done\",\"success\":false,\"error\":\"Script exited with code 1\"}\n\n"
+        };
+        var service = new AuditingPowerShellService(inner, audit, new ExecutionAuditContextAccessor());
+
+        await service.StreamScriptOutputAsync("Search", new Dictionary<string, string>(), _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Contains(audit.Records, record => record.Outcome == "Failed");
+        Assert.DoesNotContain(audit.Records, record => record.Outcome == "Succeeded");
+    }
+
+    [Fact]
     public async Task AuditingServiceDoesNotInvokePowerShellWhenStartAuditFails()
     {
         var inner = new StubPowerShellService();
@@ -137,6 +174,7 @@ public class ExecutionAuditTests
     {
         public ScriptExecutionResult ExecutionResult { get; set; } = new();
         public Exception? StreamException { get; set; }
+        public string? StreamOutput { get; set; }
         public bool ExecuteCalled { get; private set; }
 
         public List<PowerShellScript> GetAvailableScripts() => new();
@@ -146,7 +184,12 @@ public class ExecutionAuditTests
             ExecuteCalled = true;
             return Task.FromResult(ExecutionResult);
         }
-        public Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken) =>
-            StreamException is null ? Task.CompletedTask : Task.FromException(StreamException);
+        public Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken)
+        {
+            if (StreamException is not null)
+                return Task.FromException(StreamException);
+
+            return StreamOutput is null ? Task.CompletedTask : onLine(StreamOutput);
+        }
     }
 }
