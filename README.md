@@ -10,6 +10,8 @@ It works by:
 
 The PowerShell Script List is intentionally retained for the tactical UserAdmin application. A `.ps1` file added to the folder is not exposed automatically; making a new generic script available requires an explicit catalogue change and a reviewed pull request.
 
+Catalogue entries carry an explicit risk classification. Read-only scripts run without an additional confirmation; mutation and destructive scripts require deliberate operator confirmation, and destructive scripts are labelled accordingly. `NewUser` output is sanitised at the generic response boundary so generated passwords are not returned to the browser. Whether the User Admin team needs mutation scripts to remain directly available through the Script List is still a business-process decision.
+
 There are some hard-coded MVC routes that allow better customisation of the interface, but behind the scenes they are using the PowerShell scripts in the Scripts folder.
 
 

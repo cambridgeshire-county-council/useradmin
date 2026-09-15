@@ -10,7 +10,7 @@
         @foreach (var script in Model)
         {
             <a href="@Url.Action("Details", "Scripts", new { name = script.Name })" class="list-group-item list-group-item-action">
-                <h5 class="mb-1">@script.Name</h5>
+                <h5 class="mb-1">@script.Name <span class="badge bg-@(script.Risk == GenericScriptRisk.ReadOnly ? "secondary" : script.Risk == GenericScriptRisk.Mutation ? "warning text-dark" : "danger")">@(script.Risk == GenericScriptRisk.ReadOnly ? "Read-only" : script.Risk == GenericScriptRisk.Mutation ? "Changes directory" : "Destructive")</span></h5>
                 <small>Parameters: @script.Parameters.Count</small>
             </a>
         }

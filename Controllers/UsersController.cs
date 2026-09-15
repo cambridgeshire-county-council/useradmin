@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using PSScriptWebApp.Models;
@@ -39,7 +38,7 @@ public class UsersController : Controller
         var result = await _powerShellService.ExecuteScriptAsync("NewUser", parameters);
 
         model.ExecutionSucceeded = result.Success;
-        model.ExecutionOutput = SanitizeOutput(result.Output);
+        model.ExecutionOutput = ScriptOutputSanitizer.SanitizeOutput(result.Output);
         model.ExecutionError = result.Error;
 
         if (!result.Success && string.IsNullOrWhiteSpace(model.ExecutionError))
@@ -70,7 +69,7 @@ public class UsersController : Controller
         {
             await _powerShellService.StreamScriptOutputAsync("NewUser", parameters, async sseEvent =>
             {
-                var sanitized = SanitizeSseEvent(sseEvent);
+                var sanitized = ScriptOutputSanitizer.SanitizeSseEvent(sseEvent);
                 await Response.WriteAsync(sanitized, cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);
             }, cancellationToken);
@@ -462,42 +461,6 @@ public class UsersController : Controller
             ["Company"] = model.Company,
             ["Manager"] = model.Manager ?? string.Empty
         };
-    }
-
-    private static string? SanitizeOutput(string? output)
-    {
-        if (string.IsNullOrWhiteSpace(output))
-            return output;
-
-        return Regex.Replace(
-            output,
-            @"(?im)^Generated Password:\s*.+$",
-            "Generated Password: [hidden]");
-    }
-
-    private static string SanitizeSseEvent(string sseEvent)
-    {
-        if (!sseEvent.Contains("Generated Password", StringComparison.OrdinalIgnoreCase))
-            return sseEvent;
-
-        if (!sseEvent.StartsWith("data:"))
-            return sseEvent;
-
-        try
-        {
-            var jsonPart = sseEvent["data:".Length..].TrimEnd('\n');
-            using var doc = JsonDocument.Parse(jsonPart);
-            var root = doc.RootElement;
-            var type = root.GetProperty("type").GetString() ?? "line";
-            if (root.TryGetProperty("text", out var textProp))
-            {
-                var sanitized = SanitizeOutput(textProp.GetString());
-                return "data:" + JsonSerializer.Serialize(new { type, text = sanitized }) + "\n\n";
-            }
-        }
-        catch { }
-
-        return sseEvent;
     }
 
     private static List<T> ParseListOutput<T>(string? output)

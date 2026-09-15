@@ -5,6 +5,15 @@
 
 <div class="container">
     <h1>@Model.Name</h1>
+
+    @if (Model.Risk == GenericScriptRisk.Mutation)
+    {
+        <div class="alert alert-warning" role="alert">This script changes live identity or directory data. Confirm the script name before running it.</div>
+    }
+    else if (Model.Risk == GenericScriptRisk.Destructive)
+    {
+        <div class="alert alert-danger" role="alert">This script performs a destructive operation that may be irreversible. Confirm the script name before running it.</div>
+    }
     
     <div class="card mt-4">
         <div class="card-body">
@@ -61,10 +70,26 @@
             const parameters = {};
             const inputs = form.querySelectorAll('input:not([name="__RequestVerificationToken"])');
             const antiforgeryToken = form.querySelector('input[name="__RequestVerificationToken"]').value;
+            const requiresConfirmation = @Model.RequiresConfirmation.ToString().ToLowerInvariant();
+            const scriptName = '@Model.Name';
             const runBtn = document.getElementById('runBtn');
             const loadingIndicator = document.getElementById('loadingIndicator');
             const outputDiv = document.getElementById('output');
             const outputText = document.getElementById('outputText');
+
+            for (const input of inputs) {
+                parameters[input.name] = input.value;
+            }
+
+            let confirmationHeader = null;
+            if (requiresConfirmation) {
+                const account = parameters.SamAccountName ? ` for ${parameters.SamAccountName}` : '';
+                const warning = '@(Model.WarningText ?? string.Empty)';
+                if (!window.confirm(warning + ` Confirm ${scriptName}${account}?`)) {
+                    return;
+                }
+                confirmationHeader = scriptName;
+            }
 
             inputs.forEach(input => input.disabled = true);
             runBtn.disabled = true;
@@ -74,10 +99,6 @@
             outputText.textContent = '';
             outputText.className = '';
 
-            for (const input of inputs) {
-                parameters[input.name] = input.value;
-            }
-
             const url = new URL('@Url.Action("Stream", "Scripts", new { name = Model.Name })', window.location.origin);
 
             try {
@@ -85,7 +106,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'RequestVerificationToken': antiforgeryToken
+                        'RequestVerificationToken': antiforgeryToken,
+                        ...(confirmationHeader ? { 'X-UserAdmin-Confirm': confirmationHeader } : {})
                     },
                     body: JSON.stringify(parameters)
                 });

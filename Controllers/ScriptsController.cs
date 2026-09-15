@@ -7,6 +7,7 @@ namespace PSScriptWebApp.Controllers;
 public class ScriptsController : Controller
 {
     private readonly IPowerShellService _powerShellService;
+    private const string ConfirmationHeader = "X-UserAdmin-Confirm";
 
     public ScriptsController(IPowerShellService powerShellService)
     {
@@ -16,21 +17,22 @@ public class ScriptsController : Controller
     public IActionResult Index()
     {
         var scripts = _powerShellService.GetAvailableScripts()
-            .Where(script => GenericScriptCatalogue.TryGetCanonicalName(script.Name, out _))
+            .Where(script => GenericScriptCatalogue.TryGetDefinition(script.Name, out _))
+            .Select(ApplyCatalogueMetadata)
             .ToList();
         return View(scripts);
     }
 
     public IActionResult Details(string name)
     {
-        if (!GenericScriptCatalogue.TryGetCanonicalName(name, out var canonicalName))
+        if (!GenericScriptCatalogue.TryGetDefinition(name, out var definition))
         {
             return NotFound();
         }
 
         try
         {
-            var script = _powerShellService.GetScriptDetails(canonicalName);
+            var script = ApplyCatalogueMetadata(_powerShellService.GetScriptDetails(definition.Name));
             return View(script);
         }
         catch (FileNotFoundException)
@@ -43,14 +45,24 @@ public class ScriptsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Execute(string name, [FromBody] Dictionary<string, string> parameters)
     {
-        if (!GenericScriptCatalogue.TryGetCanonicalName(name, out var canonicalName))
+        if (!GenericScriptCatalogue.TryGetDefinition(name, out var definition))
         {
             return NotFound();
         }
 
+        if (!HasRequiredConfirmation(definition))
+        {
+            return BadRequest("Explicit operator confirmation is required for this script.");
+        }
+
         try
         {
-            var result = await _powerShellService.ExecuteScriptAsync(canonicalName, parameters ?? new Dictionary<string, string>());
+            var result = await _powerShellService.ExecuteScriptAsync(definition.Name, parameters ?? new Dictionary<string, string>());
+            if (definition.RequiresSensitiveOutputSanitisation)
+            {
+                result.Output = ScriptOutputSanitizer.SanitizeOutput(result.Output) ?? string.Empty;
+                result.Error = ScriptOutputSanitizer.SanitizeOutput(result.Error);
+            }
             return Json(result);
         }
         catch (Exception ex)
@@ -63,9 +75,15 @@ public class ScriptsController : Controller
     [ValidateAntiForgeryToken]
     public async Task Stream(string name, [FromBody] Dictionary<string, string>? parameters, CancellationToken cancellationToken)
     {
-        if (!GenericScriptCatalogue.TryGetCanonicalName(name, out var canonicalName))
+        if (!GenericScriptCatalogue.TryGetDefinition(name, out var definition))
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        if (!HasRequiredConfirmation(definition))
+        {
+            Response.StatusCode = StatusCodes.Status400BadRequest;
             return;
         }
 
@@ -75,8 +93,12 @@ public class ScriptsController : Controller
 
         try
         {
-            await _powerShellService.StreamScriptOutputAsync(canonicalName, parameters ?? new Dictionary<string, string>(), async line =>
+            await _powerShellService.StreamScriptOutputAsync(definition.Name, parameters ?? new Dictionary<string, string>(), async line =>
             {
+                if (definition.RequiresSensitiveOutputSanitisation)
+                {
+                    line = ScriptOutputSanitizer.SanitizeSseEvent(line);
+                }
                 await Response.WriteAsync(line, cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);
             }, cancellationToken);
@@ -94,5 +116,24 @@ public class ScriptsController : Controller
     public IActionResult Stream(string name)
     {
         return StatusCode(StatusCodes.Status405MethodNotAllowed);
+    }
+
+    private bool HasRequiredConfirmation(GenericScriptDefinition definition)
+    {
+        return !definition.RequiresConfirmation ||
+            string.Equals(Request.Headers[ConfirmationHeader].ToString(), definition.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static PowerShellScript ApplyCatalogueMetadata(PowerShellScript script)
+    {
+        if (GenericScriptCatalogue.TryGetDefinition(script.Name, out var definition))
+        {
+            script.Risk = definition.Risk;
+            script.RequiresConfirmation = definition.RequiresConfirmation;
+            script.RequiresSensitiveOutputSanitisation = definition.RequiresSensitiveOutputSanitisation;
+            script.WarningText = definition.WarningText;
+        }
+
+        return script;
     }
 }
