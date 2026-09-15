@@ -15,15 +15,22 @@ public class ScriptsController : Controller
 
     public IActionResult Index()
     {
-        var scripts = _powerShellService.GetAvailableScripts();
+        var scripts = _powerShellService.GetAvailableScripts()
+            .Where(script => GenericScriptCatalogue.TryGetCanonicalName(script.Name, out _))
+            .ToList();
         return View(scripts);
     }
 
     public IActionResult Details(string name)
     {
+        if (!GenericScriptCatalogue.TryGetCanonicalName(name, out var canonicalName))
+        {
+            return NotFound();
+        }
+
         try
         {
-            var script = _powerShellService.GetScriptDetails(name);
+            var script = _powerShellService.GetScriptDetails(canonicalName);
             return View(script);
         }
         catch (FileNotFoundException)
@@ -36,9 +43,14 @@ public class ScriptsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Execute(string name, [FromBody] Dictionary<string, string> parameters)
     {
+        if (!GenericScriptCatalogue.TryGetCanonicalName(name, out var canonicalName))
+        {
+            return NotFound();
+        }
+
         try
         {
-            var result = await _powerShellService.ExecuteScriptAsync(name, parameters ?? new Dictionary<string, string>());
+            var result = await _powerShellService.ExecuteScriptAsync(canonicalName, parameters ?? new Dictionary<string, string>());
             return Json(result);
         }
         catch (Exception ex)
@@ -51,13 +63,19 @@ public class ScriptsController : Controller
     [ValidateAntiForgeryToken]
     public async Task Stream(string name, [FromBody] Dictionary<string, string>? parameters, CancellationToken cancellationToken)
     {
+        if (!GenericScriptCatalogue.TryGetCanonicalName(name, out var canonicalName))
+        {
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
 
         try
         {
-            await _powerShellService.StreamScriptOutputAsync(name, parameters ?? new Dictionary<string, string>(), async line =>
+            await _powerShellService.StreamScriptOutputAsync(canonicalName, parameters ?? new Dictionary<string, string>(), async line =>
             {
                 await Response.WriteAsync(line, cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);

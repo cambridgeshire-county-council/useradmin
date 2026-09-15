@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using PSScriptWebApp.Controllers;
 using PSScriptWebApp.Models;
@@ -16,8 +17,13 @@ public class ScriptsControllerTests
         {
             new()
             {
-                Name = "Example",
-                Path = "C:\\scripts\\Example.ps1"
+                Name = "Search",
+                Path = "C:\\scripts\\Search.ps1"
+            },
+            new()
+            {
+                Name = "Basic",
+                Path = "C:\\scripts\\Basic.ps1"
             }
         };
 
@@ -30,7 +36,8 @@ public class ScriptsControllerTests
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<List<PowerShellScript>>(viewResult.Model);
-        Assert.Same(scripts, model);
+        var script = Assert.Single(model);
+        Assert.Equal("Search", script.Name);
     }
 
     [Fact]
@@ -44,6 +51,30 @@ public class ScriptsControllerTests
         var result = controller.Details("Missing");
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public void Details_ReturnsNotFoundWithoutCallingServiceForNonCataloguedScript()
+    {
+        var stub = new StubPowerShellService();
+        var controller = new ScriptsController(stub);
+
+        var result = controller.Details("Basic");
+
+        Assert.IsType<NotFoundResult>(result);
+        Assert.False(stub.GetScriptDetailsCalled);
+    }
+
+    [Fact]
+    public void Details_AcceptsCaseDifferencesForCataloguedScript()
+    {
+        var stub = new StubPowerShellService();
+        var controller = new ScriptsController(stub);
+
+        var result = controller.Details("search");
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Equal("Search", stub.LastScriptName);
     }
 
     [Fact]
@@ -61,7 +92,7 @@ public class ScriptsControllerTests
         });
 
         var result = await controller.Execute(
-            "Example",
+            "Search",
             new Dictionary<string, string>
             {
                 ["Message"] = "Hello"
@@ -72,6 +103,36 @@ public class ScriptsControllerTests
         Assert.Same(expectedResult, model);
         Assert.True(model.Success);
         Assert.Equal("script output", model.Output);
+    }
+
+    [Fact]
+    public async Task Execute_ReturnsNotFoundWithoutCallingServiceForNonCataloguedScript()
+    {
+        var stub = new StubPowerShellService();
+        var controller = new ScriptsController(stub);
+
+        var result = await controller.Execute("Basic", new Dictionary<string, string>());
+
+        Assert.IsType<NotFoundResult>(result);
+        Assert.False(stub.ExecuteCalled);
+    }
+
+    [Fact]
+    public async Task Stream_ReturnsNotFoundWithoutCallingServiceForNonCataloguedScript()
+    {
+        var stub = new StubPowerShellService();
+        var controller = new ScriptsController(stub)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+
+        await controller.Stream("Basic", new Dictionary<string, string>(), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
+        Assert.False(stub.StreamCalled);
     }
 
     [Fact]
@@ -97,6 +158,10 @@ public class ScriptsControllerTests
         public List<PowerShellScript> Scripts { get; set; } = new();
         public ScriptExecutionResult ExecutionResult { get; set; } = new();
         public bool ThrowOnGetScriptDetails { get; set; }
+        public bool GetScriptDetailsCalled { get; private set; }
+        public bool ExecuteCalled { get; private set; }
+        public bool StreamCalled { get; private set; }
+        public string? LastScriptName { get; private set; }
 
         public List<PowerShellScript> GetAvailableScripts() => Scripts;
 
@@ -107,17 +172,23 @@ public class ScriptsControllerTests
                 throw new FileNotFoundException($"Script {scriptName} not found.");
             }
 
+            GetScriptDetailsCalled = true;
+            LastScriptName = scriptName;
             return Scripts.FirstOrDefault(script => script.Name == scriptName)
                 ?? new PowerShellScript { Name = scriptName };
         }
 
         public Task<ScriptExecutionResult> ExecuteScriptAsync(string scriptName, Dictionary<string, string> parameters)
         {
+            ExecuteCalled = true;
+            LastScriptName = scriptName;
             return Task.FromResult(ExecutionResult);
         }
 
         public Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken)
         {
+            StreamCalled = true;
+            LastScriptName = scriptName;
             return Task.CompletedTask;
         }
     }
