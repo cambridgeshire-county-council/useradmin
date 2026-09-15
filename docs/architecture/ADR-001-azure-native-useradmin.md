@@ -12,7 +12,7 @@ Existing scripts, controllers, and views are migration evidence for user journey
 
 ## Current Tactical Platform
 - CCCS923/Nutanix VPC is an intentional transitional platform and is not rejected as the current deployment target.
-- CCCS653 and the hybrid Exchange dependency are current dependencies to understand, secure, and support during the tactical lifetime.
+- The current Exchange Hybrid capability on CCCS653 is a dependency context to understand, secure, and support during the tactical lifetime; the exact technical dependency path from UserAdmin/CCCS923 remains to be validated.
 - A replacement IIS VM should not automatically become the long-term successor; it would extend the transitional model without resolving the strategic identity direction.
 
 ## Strategic Direction and Rejected Long-Term Approaches

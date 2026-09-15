@@ -9,7 +9,7 @@ This document defines the strategic successor architecture, not the immediate de
 Service Desk operators
     -> UserAdmin
     -> CCCS923 / Nutanix VPC
-    -> current AD / Hybrid Exchange dependencies, including CCCS653
+    -> current AD / Hybrid Exchange dependencies, including current Exchange Hybrid capability on CCCS653; exact dependency path to be validated
 ```
 
 The tactical architecture supports the current hybrid identity operating model. It should receive functional proof, security hardening, operational logging, dependency validation, controlled deployment, UAT, and a support/runbook baseline. No assumption should be made that the tactical host or generic script architecture is the strategic successor.
@@ -22,7 +22,7 @@ Revisit this architecture when one or more of these trigger conditions are met:
 - Entra cloud-only transition is approved and operationally viable.
 - The current hybrid identity architecture is retired or materially changed.
 - The Nutanix/VPC platform transitions to a new infrastructure model.
-- CCCS653 or the Exchange Hybrid dependency is removed.
+- The current Exchange Hybrid capability on CCCS653 is removed or materially changed.
 
 ## Strategic Request Path
 
@@ -145,7 +145,7 @@ The strategic migration should use a strangler approach: validate each typed rep
 This is roadmap context, not current scope. Assess probabilistic entity resolution, potentially using Splink, to detect duplicate or stale identities across source systems. A future canonical model could include `Person`, `Employment`, `Position`, `Org Unit`, and `Digital Identity`, with integrations to HR, ERP, and Entra sources. Remediation should be human-reviewed, and duplicate detection should occur before provisioning rather than after an identity is created.
 
 ## Unresolved Decisions
-- Is Entra ID authoritative for all users, or are synchronization/identity-source constraints still present?
+- Current identity remains hybrid rather than Entra cloud-only. What organisational, identity, and infrastructure milestones will trigger the strategic cloud-only successor programme?
 - Which user properties and search semantics must be retained, and which are confidential?
 - What replaces `extensionAttribute3` and `info` for deletion status and notes, including retention, legal hold, and audit requirements?
 - What is the approved deletion outcome: disable, remove licenses, remove mailbox, soft delete, hard delete, or an external HR-driven workflow?
