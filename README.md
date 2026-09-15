@@ -12,6 +12,8 @@ The PowerShell Script List is intentionally retained for the tactical UserAdmin 
 
 Catalogue entries carry an explicit risk classification. Read-only scripts run without an additional confirmation; mutation and destructive scripts require deliberate operator confirmation, and destructive scripts are labelled accordingly. `NewUser` output is sanitised at the generic response boundary so generated passwords are not returned to the browser. Whether the User Admin team needs mutation scripts to remain directly available through the Script List is still a business-process decision.
 
+Operational PowerShell execution is recorded as newline-delimited JSON in one UTC-dated file per day. Audit records deliberately exclude script output, errors, passwords, tokens, secrets, personal fields, search values, notes, and arbitrary parameter values; only an explicitly supplied `SamAccountName` may be recorded. The tactical local file is not presented as immutable or tamper-proof strategic security logging. Production CCCS923 configuration must use a persistent directory outside the replaceable IIS site directory, with directory, ACL, and retention decisions confirmed during deployment readiness.
+
 There are some hard-coded MVC routes that allow better customisation of the interface, but behind the scenes they are using the PowerShell scripts in the Scripts folder.
 
 

@@ -137,6 +137,27 @@ public class ScriptsControllerTests
     }
 
     [Fact]
+    public async Task Execute_NonCataloguedScriptWritesRejectedAuditEvidence()
+    {
+        var audit = new RecordingAuditService();
+        var stub = new StubPowerShellService();
+        var controller = CreateController(stub, audit);
+
+        var result = await controller.Execute("Basic", new Dictionary<string, string>
+        {
+            ["SamAccountName"] = "ABC123",
+            ["Secret"] = "not recorded"
+        });
+
+        Assert.IsType<NotFoundResult>(result);
+        Assert.False(stub.ExecuteCalled);
+        var record = Assert.Single(audit.Records);
+        Assert.Equal("Rejected", record.Outcome);
+        Assert.Equal("Generic", record.Source);
+        Assert.Equal("ABC123", record.TargetSamAccountName);
+    }
+
+    [Fact]
     public async Task Execute_ReadOnlyScriptDoesNotRequireConfirmation()
     {
         var stub = new StubPowerShellService { ExecutionResult = new ScriptExecutionResult { Success = true } };
@@ -163,6 +184,20 @@ public class ScriptsControllerTests
     }
 
     [Fact]
+    public async Task Execute_MissingMutationConfirmationWritesRejectedAuditEvidence()
+    {
+        var audit = new RecordingAuditService();
+        var stub = new StubPowerShellService();
+        var controller = CreateController(stub, audit);
+
+        var result = await controller.Execute("MarkForDeletion", new Dictionary<string, string>());
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.False(stub.ExecuteCalled);
+        Assert.Equal("Rejected", Assert.Single(audit.Records).Outcome);
+    }
+
+    [Fact]
     public async Task Execute_MutationWithConfirmationInvokesService()
     {
         var stub = new StubPowerShellService { ExecutionResult = new ScriptExecutionResult { Success = true } };
@@ -173,6 +208,29 @@ public class ScriptsControllerTests
 
         Assert.True(stub.ExecuteCalled);
         Assert.Equal("MarkForDeletion", stub.LastScriptName);
+    }
+
+    [Fact]
+    public async Task Execute_ConfirmedMutationProducesExecutionAuditEvent()
+    {
+        var audit = new RecordingAuditService();
+        var inner = new StubPowerShellService { ExecutionResult = new ScriptExecutionResult { Success = true } };
+        var context = new ExecutionAuditContextAccessor();
+        var auditedService = new AuditingPowerShellService(inner, audit, context);
+        var controller = CreateController(auditedService, audit, context);
+        controller.Request.Headers["X-UserAdmin-Confirm"] = "MarkForDeletion";
+
+        await controller.Execute("MarkForDeletion", new Dictionary<string, string>
+        {
+            ["SamAccountName"] = "ABC123",
+            ["Notes"] = "private notes"
+        });
+
+        Assert.True(inner.ExecuteCalled);
+        var completed = Assert.Single(audit.Records, record => record.Outcome == "Succeeded");
+        Assert.Equal("Generic", completed.Source);
+        Assert.Equal("ABC123", completed.TargetSamAccountName);
+        Assert.DoesNotContain("private notes", audit.SerialisedRecords);
     }
 
     [Fact]
@@ -277,9 +335,9 @@ public class ScriptsControllerTests
         Assert.NotNull(streamMethod.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
     }
 
-    private static ScriptsController CreateController(StubPowerShellService stub)
+    private static ScriptsController CreateController(IPowerShellService service, IExecutionAuditService? audit = null, IExecutionAuditContextAccessor? context = null)
     {
-        var controller = new ScriptsController(stub)
+        var controller = new ScriptsController(service, audit, context ?? new ExecutionAuditContextAccessor())
         {
             ControllerContext = new ControllerContext
             {
@@ -328,6 +386,18 @@ public class ScriptsControllerTests
             StreamCalled = true;
             LastScriptName = scriptName;
             return StreamOutput is null ? Task.CompletedTask : onLine(StreamOutput);
+        }
+    }
+
+    private sealed class RecordingAuditService : IExecutionAuditService
+    {
+        public List<ExecutionAuditRecord> Records { get; } = new();
+        public string SerialisedRecords => string.Join("\n", Records.Select(record => System.Text.Json.JsonSerializer.Serialize(record)));
+
+        public Task WriteAsync(ExecutionAuditRecord record, CancellationToken cancellationToken = default)
+        {
+            Records.Add(record);
+            return Task.CompletedTask;
         }
     }
 }

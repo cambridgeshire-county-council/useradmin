@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.Configure<AllowedUsersOptions>(builder.Configuration.GetSection("Authorization"));
+builder.Services.Configure<AuditLoggingOptions>(builder.Configuration.GetSection("AuditLogging"));
 
 builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme)
     .AddNegotiate();
@@ -25,7 +26,13 @@ builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add(new AuthorizeFilter());
 });
-builder.Services.AddScoped<IPowerShellService, PowerShellService>();
+builder.Services.AddSingleton<IExecutionAuditContextAccessor, ExecutionAuditContextAccessor>();
+builder.Services.AddSingleton<IExecutionAuditService, JsonLinesExecutionAuditService>();
+builder.Services.AddScoped<PowerShellService>();
+builder.Services.AddScoped<IPowerShellService>(services => new AuditingPowerShellService(
+    services.GetRequiredService<PowerShellService>(),
+    services.GetRequiredService<IExecutionAuditService>(),
+    services.GetRequiredService<IExecutionAuditContextAccessor>()));
 
 var app = builder.Build();
 
