@@ -122,7 +122,7 @@ New cloud risks need explicit controls:
 4. Secure operational scripts.
 5. Remove demo/test exposure.
 6. Improve audit and logging.
-7. Upgrade .NET 9 to .NET 10 LTS.
+7. Maintain the .NET 10 LTS runtime baseline.
 8. CCCS923 readiness, including CCCS653/hybrid dependency validation.
 9. Deploy to CCCS923.
 10. User Admin UAT.
