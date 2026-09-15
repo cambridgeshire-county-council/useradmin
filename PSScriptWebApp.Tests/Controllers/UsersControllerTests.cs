@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using System.Text;
 using PSScriptWebApp.Controllers;
 using PSScriptWebApp.Models;
 using PSScriptWebApp.Services;
@@ -95,6 +97,59 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public void StreamNew_RequiresPostAndAntiforgeryValidation()
+    {
+        var streamMethod = typeof(UsersController).GetMethod(nameof(UsersController.StreamNew));
+
+        Assert.NotNull(streamMethod);
+        Assert.NotNull(streamMethod.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true).SingleOrDefault());
+        Assert.Empty(streamMethod.GetCustomAttributes(typeof(HttpGetAttribute), inherit: true));
+        Assert.NotNull(streamMethod.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
+        Assert.NotNull(streamMethod.GetParameters()
+            .Single(parameter => parameter.Name == "model")
+            .GetCustomAttributes(typeof(FromBodyAttribute), inherit: true)
+            .SingleOrDefault());
+    }
+
+    [Fact]
+    public async Task StreamNew_ValidModelMapsParametersAndSanitisesGeneratedPassword()
+    {
+        var stubService = new StubPowerShellService
+        {
+            StreamOutput = "data:{\"type\":\"line\",\"text\":\"Generated Password: Secret123!\"}\n\n"
+        };
+        var controller = CreateController(stubService);
+        var model = CreateValidModel();
+
+        await controller.StreamNew(model, CancellationToken.None);
+
+        Assert.True(stubService.StreamCalled);
+        Assert.Equal("NewUser", stubService.LastStreamScriptName);
+        Assert.NotNull(stubService.LastStreamParameters);
+        Assert.Equal(14, stubService.LastStreamParameters!.Count);
+        Assert.Equal(model.FirstName, stubService.LastStreamParameters["FirstName"]);
+        Assert.Equal(model.SamAccountName, stubService.LastStreamParameters["SamAccountName"]);
+        Assert.Equal(model.Manager ?? string.Empty, stubService.LastStreamParameters["Manager"]);
+
+        var response = await ReadResponseAsync(controller);
+        Assert.Contains("Generated Password: [hidden]", response);
+        Assert.DoesNotContain("Secret123!", response);
+    }
+
+    [Fact]
+    public async Task StreamNew_InvalidModelDoesNotInvokePowerShellService()
+    {
+        var stubService = new StubPowerShellService();
+        var controller = CreateController(stubService);
+        controller.ModelState.AddModelError(nameof(NewUserFormModel.FirstName), "Required");
+
+        await controller.StreamNew(CreateValidModel(), CancellationToken.None);
+
+        Assert.False(stubService.StreamCalled);
+        Assert.Equal(StatusCodes.Status400BadRequest, controller.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task Search_Post_ValidModel_ParsesResults()
     {
         var stubService = new StubPowerShellService
@@ -164,6 +219,26 @@ public class UsersControllerTests
         };
     }
 
+    private static UsersController CreateController(StubPowerShellService stubService)
+    {
+        var controller = new UsersController(stubService)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+        controller.Response.Body = new MemoryStream();
+        return controller;
+    }
+
+    private static async Task<string> ReadResponseAsync(UsersController controller)
+    {
+        controller.Response.Body.Position = 0;
+        using var reader = new StreamReader(controller.Response.Body, Encoding.UTF8, leaveOpen: true);
+        return await reader.ReadToEndAsync();
+    }
+
     private sealed class StubPowerShellService : IPowerShellService
     {
         public ScriptExecutionResult ExecutionResult { get; set; } = new();
@@ -171,6 +246,10 @@ public class UsersControllerTests
         public bool ExecuteCalled { get; private set; }
         public string? LastScriptName { get; private set; }
         public Dictionary<string, string>? LastParameters { get; private set; }
+        public bool StreamCalled { get; private set; }
+        public string? LastStreamScriptName { get; private set; }
+        public Dictionary<string, string>? LastStreamParameters { get; private set; }
+        public string? StreamOutput { get; set; }
 
         public List<PowerShellScript> GetAvailableScripts() => new();
 
@@ -194,7 +273,10 @@ public class UsersControllerTests
 
         public Task StreamScriptOutputAsync(string scriptName, Dictionary<string, string> parameters, Func<string, Task> onLine, CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            StreamCalled = true;
+            LastStreamScriptName = scriptName;
+            LastStreamParameters = parameters;
+            return StreamOutput is null ? Task.CompletedTask : onLine(StreamOutput);
         }
     }
 }

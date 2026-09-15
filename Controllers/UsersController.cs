@@ -34,23 +34,7 @@ public class UsersController : Controller
             return View(model);
         }
 
-        var parameters = new Dictionary<string, string>
-        {
-            ["FirstName"] = model.FirstName,
-            ["LastName"] = model.LastName,
-            ["DisplayName"] = model.DisplayName,
-            ["UserPrincipalName"] = model.UserPrincipalName,
-            ["SamAccountName"] = model.SamAccountName,
-            ["Office"] = model.Office ?? string.Empty,
-            ["StreetAddress"] = model.StreetAddress ?? string.Empty,
-            ["POBox"] = model.POBox ?? string.Empty,
-            ["PostalCode"] = model.PostalCode ?? string.Empty,
-            ["Country"] = model.Country,
-            ["JobTitle"] = model.JobTitle ?? string.Empty,
-            ["Department"] = model.Department ?? string.Empty,
-            ["Company"] = model.Company,
-            ["Manager"] = model.Manager ?? string.Empty
-        };
+        var parameters = BuildNewUserParameters(model);
 
         var result = await _powerShellService.ExecuteScriptAsync("NewUser", parameters);
 
@@ -66,11 +50,17 @@ public class UsersController : Controller
         return View(model);
     }
 
-    [HttpGet]
-    public async Task StreamNew(CancellationToken cancellationToken)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task StreamNew([FromBody] NewUserFormModel? model, CancellationToken cancellationToken)
     {
-        var parameters = Request.Query
-            .ToDictionary(q => q.Key, q => q.Value.ToString());
+        if (model is null || !ModelState.IsValid)
+        {
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        var parameters = BuildNewUserParameters(model);
 
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
@@ -375,6 +365,27 @@ public class UsersController : Controller
             : $"{succeeded} deleted, {failed} failed.";
 
         return RedirectToAction(nameof(MarkedForDeletion), new { filter, status });
+    }
+
+    private static Dictionary<string, string> BuildNewUserParameters(NewUserFormModel model)
+    {
+        return new Dictionary<string, string>
+        {
+            ["FirstName"] = model.FirstName,
+            ["LastName"] = model.LastName,
+            ["DisplayName"] = model.DisplayName,
+            ["UserPrincipalName"] = model.UserPrincipalName,
+            ["SamAccountName"] = model.SamAccountName,
+            ["Office"] = model.Office ?? string.Empty,
+            ["StreetAddress"] = model.StreetAddress ?? string.Empty,
+            ["POBox"] = model.POBox ?? string.Empty,
+            ["PostalCode"] = model.PostalCode ?? string.Empty,
+            ["Country"] = model.Country,
+            ["JobTitle"] = model.JobTitle ?? string.Empty,
+            ["Department"] = model.Department ?? string.Empty,
+            ["Company"] = model.Company,
+            ["Manager"] = model.Manager ?? string.Empty
+        };
     }
 
     private static string? SanitizeOutput(string? output)
