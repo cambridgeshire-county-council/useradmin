@@ -345,12 +345,45 @@ public class UsersController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteMarked(List<string> samAccountNames, string filter = "all")
+    public async Task<IActionResult> DeleteMarked(List<string>? samAccountNames, string filter = "all")
     {
+        if (samAccountNames is null || samAccountNames.Count == 0)
+        {
+            return RedirectToAction(nameof(MarkedForDeletion), new
+            {
+                filter,
+                status = "No accounts were selected for deletion."
+            });
+        }
+
+        var requestedAccounts = samAccountNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (requestedAccounts.Count == 0)
+        {
+            return RedirectToAction(nameof(MarkedForDeletion), new
+            {
+                filter,
+                status = "No accounts were selected for deletion."
+            });
+        }
+
+        var markedAccounts = await GetCurrentlyMarkedAccountsAsync();
+        if (markedAccounts is null || requestedAccounts.Any(name => !markedAccounts.Contains(name)))
+        {
+            return RedirectToAction(nameof(MarkedForDeletion), new
+            {
+                filter,
+                status = "Deletion request rejected because one or more accounts are not currently marked for deletion."
+            });
+        }
+
         int succeeded = 0;
         int failed = 0;
 
-        foreach (var sam in samAccountNames)
+        foreach (var sam in requestedAccounts)
         {
             var result = await _powerShellService.ExecuteScriptAsync(
                 "DeleteUser",
@@ -365,6 +398,35 @@ public class UsersController : Controller
             : $"{succeeded} deleted, {failed} failed.";
 
         return RedirectToAction(nameof(MarkedForDeletion), new { filter, status });
+    }
+
+    private async Task<HashSet<string>?> GetCurrentlyMarkedAccountsAsync()
+    {
+        var result = await _powerShellService.ExecuteScriptAsync(
+            "GetMarkedForDeletion",
+            new Dictionary<string, string>());
+
+        if (!result.Success)
+        {
+            return null;
+        }
+
+        try
+        {
+            var markedUsers = ParseListOutput<MarkedUserItem>(result.Output);
+            if (markedUsers.Any(user => string.IsNullOrWhiteSpace(user.SamAccountName)))
+            {
+                return null;
+            }
+
+            return markedUsers
+                .Select(user => user.SamAccountName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static Dictionary<string, string> BuildNewUserParameters(NewUserFormModel model)
