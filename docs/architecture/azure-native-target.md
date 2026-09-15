@@ -1,9 +1,30 @@
-# Azure-Native UserAdmin Target Architecture
+# UserAdmin Future Target Architecture
 
-## Goal
-Deliver UserAdmin as an Azure-native ASP.NET Core application for Entra and Microsoft 365 user administration. The target is not a lift-and-shift of the current PowerShell runner. It is a typed, auditable set of business operations.
+## Scope and Horizon
+This document defines the strategic successor architecture, not the immediate delivery platform. UserAdmin is expected to be relatively short-lived in its present form. The tactical objective is to complete, harden, deploy, and support the current hybrid process on CCCS923/Nutanix. The strategic objective is to replace that process when the organisation's identity and infrastructure architecture permits it.
 
-## Target Request Path
+## Current Tactical Architecture
+
+```text
+Service Desk operators
+    -> UserAdmin
+    -> CCCS923 / Nutanix VPC
+    -> current AD / Hybrid Exchange dependencies, including CCCS653
+```
+
+The tactical architecture supports the current hybrid identity operating model. It should receive functional proof, security hardening, operational logging, dependency validation, controlled deployment, UAT, and a support/runbook baseline. No assumption should be made that the tactical host or generic script architecture is the strategic successor.
+
+## Strategic Successor Architecture
+
+The strategic successor is an Azure-native ASP.NET Core application for Entra and Microsoft 365 user administration. It is not a lift-and-shift of the current PowerShell runner; it is a typed, auditable set of business operations.
+
+Revisit this architecture when one or more of these trigger conditions are met:
+- Entra cloud-only transition is approved and operationally viable.
+- The current hybrid identity architecture is retired or materially changed.
+- The Nutanix/VPC platform transitions to a new infrastructure model.
+- CCCS653 or the Exchange Hybrid dependency is removed.
+
+## Strategic Request Path
 
 ```mermaid
 flowchart LR
@@ -20,7 +41,7 @@ flowchart LR
     Insights --> Logs[Log Analytics]
 ```
 
-## Separation of Responsibilities
+## Strategic Separation of Responsibilities
 
 ### Control Plane
 - App Service hosts the authenticated MVC UI and application APIs.
@@ -92,22 +113,36 @@ New cloud risks need explicit controls:
 - workload identity misuse: OIDC subject/audience/environment restrictions and credential monitoring;
 - unnecessary secrets: eliminate first, then use Key Vault references.
 
-## Migration Strategy
+## Two-Horizon Delivery Roadmap
 
-Use a strangler migration. Keep legacy behavior available only while a typed replacement is validated; remove individual legacy routes after their business replacement and acceptance criteria are approved.
+### Horizon 1: Tactical Delivery
+1. Functional inventory and proof.
+2. Local read-only integration testing.
+3. Close functional gaps.
+4. Secure operational scripts.
+5. Remove demo/test exposure.
+6. Improve audit and logging.
+7. Upgrade .NET 9 to .NET 10 LTS.
+8. CCCS923 readiness, including CCCS653/hybrid dependency validation.
+9. Deploy to CCCS923.
+10. User Admin UAT.
+11. Controlled proof of New User, mark, unmark, and delete with approved test identities.
+12. Production acceptance and runbook.
 
-1. Foundation (safe): document tenant authority, data ownership, retention, role owners, naming/UPN policy, licensing, mailbox requirements, and destructive-action governance.
-2. Platform foundation (safe): move to .NET 10 LTS, establish App Service-ready configuration, Application Insights/Log Analytics, OIDC CI/CD design, and security baselines. No production provisioning in this step.
-3. Entra authentication/authorization (safe): replace Windows Negotiate and allow-list with Entra authentication and Reader/Operator/DestructiveOperator policies.
-4. Graph connectivity (safe): introduce managed workload identity, permission review, typed Graph client boundary, safe logging, and contract tests.
-5. Read-only search and user details (safe): replace AD-backed search/details with `IUserDirectory`; retain old route only until accepted.
-6. Notes and deletion-state design (mutating after approval): decide storage/lifecycle; introduce typed mark/unmark workflow with audit.
-7. Cloud-native mutations (mutating): implement approved profile updates, manager, groups, and licensing as independent commands with least privilege.
-8. User provisioning (mutating): implement `CreateUser` as a composed workflow with approved onboarding and mailbox behavior; no plaintext password return by default.
-9. Deletion workflow (destructive): implement review, retention, confirmation, authorization, audit, recovery/retention and deletion semantics before enabling destructive execution.
-10. Remove generic PowerShell runner and demo scripts (safe after replacements): delete Script List and legacy process execution only after required typed journeys are complete.
-11. Azure deployment (controlled): provision and deploy only through a separately approved Azure delivery increment.
-12. Production hardening (controlled): operational alerts, access reviews, penetration testing, backup/recovery evidence, and runbooks.
+### Horizon 2: Strategic Successor
+1. Reassess when the identity/infrastructure roadmap changes.
+2. Entra authentication and authorization.
+3. Graph and managed identity.
+4. Typed business operations.
+5. Azure App Service/Azure-native deployment.
+6. Remove hybrid execution dependency.
+7. Assess identity resolution/master-data opportunity.
+
+The strategic migration should use a strangler approach: validate each typed replacement before retiring the corresponding tactical route. It should not be treated as a mandate to duplicate every current script behavior.
+
+## Future Roadmap Opportunity: Identity Resolution & Organisational Master Data
+
+This is roadmap context, not current scope. Assess probabilistic entity resolution, potentially using Splink, to detect duplicate or stale identities across source systems. A future canonical model could include `Person`, `Employment`, `Position`, `Org Unit`, and `Digital Identity`, with integrations to HR, ERP, and Entra sources. Remediation should be human-reviewed, and duplicate detection should occur before provisioning rather than after an identity is created.
 
 ## Unresolved Decisions
 - Is Entra ID authoritative for all users, or are synchronization/identity-source constraints still present?
