@@ -60,7 +60,7 @@ Run the pinned release after Gates 0–5:
 .\Deploy.ps1 -RunId <APPROVED_RUN_ID> -Token $env:GITHUB_TOKEN
 ```
 
-Do not paste tokens into evidence. Record run ID/number, head SHA, artefact name/checksum, backup path and result. `Deploy.ps1` validates production configuration before stopping IIS, preserves `appsettings.json`, verifies SHA256, and rolls back where a valid backup exists. On first deployment failure without a backup it leaves the app pool stopped.
+Do not paste tokens into evidence. Record run ID/number, head SHA, artefact name/checksum, backup path and result. `Deploy.ps1` validates production configuration before stopping IIS, preserves `appsettings.json`, verifies SHA256, and rolls back only when a valid previous application (existing application DLL and generated `web.config`) was present. On a true first-deployment failure it leaves the app pool stopped, even if a configuration-only backup exists.
 
 ## Gate 7 — Smoke proof
 

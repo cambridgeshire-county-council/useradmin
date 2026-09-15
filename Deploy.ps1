@@ -11,6 +11,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function ConvertTo-NormalizedPath([string]$Path) {
+  return [IO.Path]::GetFullPath($Path).TrimEnd('\')
+}
+
+function Test-IsChildPath([string]$Child, [string]$Parent) {
+  $childPath = ConvertTo-NormalizedPath $Child
+  $parentPath = ConvertTo-NormalizedPath $Parent
+  return $childPath.StartsWith($parentPath + '\', [StringComparison]::OrdinalIgnoreCase)
+}
+
 function Test-ProductionConfiguration {
   param([string]$SettingsPath, [string]$AuditRoot, [string]$DeploymentRoot)
 
@@ -19,7 +29,7 @@ function Test-ProductionConfiguration {
   $allowedUsers = @($settings.Authorization.AllowedUsers)
   if ($allowedUsers.Count -eq 0 -or $allowedUsers -contains 'CONTOSO\jdoe') { throw "Production Authorization.AllowedUsers is missing, empty, or contains the placeholder." }
   if ([string]::IsNullOrWhiteSpace($AuditRoot) -or -not [IO.Path]::IsPathRooted($AuditRoot)) { throw "AuditLogging.Directory must be an absolute path." }
-  if ($AuditRoot.TrimEnd('\') -like "$($DeploymentRoot.TrimEnd('\'))*") { throw "AuditLogging.Directory must be outside the replaceable site directory." }
+  if (Test-IsChildPath $AuditRoot $DeploymentRoot) { throw "AuditLogging.Directory must be outside the replaceable site directory." }
   if (-not (Test-Path $AuditRoot)) { throw "External audit directory does not exist: $AuditRoot" }
   if ([string]::IsNullOrWhiteSpace([string]$settings.PowerShell.ScriptsPath)) { throw "PowerShell.ScriptsPath is missing from production configuration." }
   Write-Host "      Production configuration validated (AllowedUsers count: $($allowedUsers.Count); audit path: $AuditRoot)"
@@ -84,6 +94,7 @@ Write-Host "      Checksum OK."
 
 $backup = Join-Path $WorkDir ("backup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
 $liveAppSettings = Join-Path $SitePath "appsettings.json"
+$validPreviousApplication = (Test-Path (Join-Path $SitePath 'PSScriptWebApp.dll')) -and (Test-Path (Join-Path $SitePath 'web.config'))
 if (Test-Path $liveAppSettings) {
   $liveSettings = Get-Content $liveAppSettings -Raw | ConvertFrom-Json
   Test-ProductionConfiguration -SettingsPath $liveAppSettings -AuditRoot ([string]$liveSettings.AuditLogging.Directory) -DeploymentRoot $SitePath
@@ -136,13 +147,13 @@ try {
 }
 catch {
   Write-Warning "Deploy failed. Attempting rollback from $backup..."
-  if (Test-Path $backup) {
+  if ($validPreviousApplication -and (Test-Path $backup)) {
     if (Test-Path $SitePath) { Remove-Item "$SitePath\*" -Recurse -Force }
     Write-Host "      Copying $backup to $SitePath..."
     Copy-Item "$backup\*" $SitePath -Recurse -Force
     Write-Host "      Rollback complete."
   } else {
-    Write-Warning "No backup found — leaving app pool stopped to avoid serving a partial deployment."
+    Write-Warning "First deployment failed; no valid previous application exists. Leaving app pool stopped."
     if ((Get-WebAppPoolState -Name $AppPool).Value -ne "Stopped") {
       Stop-WebAppPool -Name $AppPool
     }
