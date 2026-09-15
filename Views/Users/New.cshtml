@@ -138,6 +138,9 @@
             if (!form.reportValidity()) return;
 
             const inputs = form.querySelectorAll('input:not([name="__RequestVerificationToken"])');
+            const antiforgeryToken = form.querySelector('input[name="__RequestVerificationToken"]').value;
+            const parameters = {};
+            inputs.forEach(input => { if (input.name) parameters[input.name] = input.value; });
             const runBtn = document.getElementById('runBtn');
             const loadingIndicator = document.getElementById('loadingIndicator');
             const outputDiv = document.getElementById('output');
@@ -152,10 +155,16 @@
             outputText.className = '';
 
             const url = new URL('@Url.Action("StreamNew", "Users")', window.location.origin);
-            inputs.forEach(input => { if (input.name) url.searchParams.set(input.name, input.value); });
 
             try {
-                const response = await fetch(url.toString(), { method: 'GET' });
+                const response = await fetch(url.toString(), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': antiforgeryToken
+                    },
+                    body: JSON.stringify(parameters)
+                });
 
                 if (!response.ok) {
                     outputDiv.style.display = 'block';
