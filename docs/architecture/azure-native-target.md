@@ -9,7 +9,7 @@ This document defines the strategic successor architecture, not the immediate de
 Service Desk operators
     -> UserAdmin
     -> CCCS923 / Nutanix VPC
-    -> current AD / Hybrid Exchange dependencies, including current Exchange Hybrid capability on CCCS653; exact dependency path to be validated
+    -> current AD / Hybrid Exchange dependencies, including current Exchange Hybrid capability on CCCS659; exact dependency path to be validated
 ```
 
 The tactical architecture supports the current hybrid identity operating model. It should receive functional proof, security hardening, operational logging, dependency validation, controlled deployment, UAT, and a support/runbook baseline. No assumption should be made that the tactical host or generic script architecture is the strategic successor.
@@ -22,7 +22,7 @@ Revisit this architecture when one or more of these trigger conditions are met:
 - Entra cloud-only transition is approved and operationally viable.
 - The current hybrid identity architecture is retired or materially changed.
 - The Nutanix/VPC platform transitions to a new infrastructure model.
-- The current Exchange Hybrid capability on CCCS653 is removed or materially changed.
+- The current Exchange Hybrid capability on CCCS659 is removed or materially changed.
 
 ## Strategic Request Path
 
@@ -123,7 +123,7 @@ New cloud risks need explicit controls:
 5. Remove demo/test exposure.
 6. Improve audit and logging.
 7. Maintain the .NET 10 LTS runtime baseline.
-8. CCCS923 readiness, including CCCS653/hybrid dependency validation.
+8. CCCS923 readiness, including CCCS659/hybrid dependency validation.
 9. Deploy to CCCS923.
 10. User Admin UAT.
 11. Controlled proof of New User, mark, unmark, and delete with approved test identities.

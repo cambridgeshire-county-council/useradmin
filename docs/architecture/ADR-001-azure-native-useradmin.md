@@ -4,7 +4,7 @@
 Accepted
 
 ## Decision
-UserAdmin will use CCCS923/Nutanix as its approved tactical deployment target for the current hybrid identity operating model. The current process remains dependent on the hybrid identity and Exchange model, including CCCS653 as the Exchange Hybrid server, and must be completed, secured, deployed, and supported safely during its expected short lifetime.
+UserAdmin will use CCCS923/Nutanix as its approved tactical deployment target for the current hybrid identity operating model. The current process remains dependent on the hybrid identity and Exchange model, including CCCS659 as the Exchange Hybrid server, and must be completed, secured, deployed, and supported safely during its expected short lifetime.
 
 Azure-native Entra/Microsoft 365 remains the approved strategic successor direction when the organisation's identity and infrastructure architecture permits it. The successor should replace the legacy execution model with typed business operations rather than lift-and-shift the same generic PowerShell architecture.
 
@@ -12,7 +12,7 @@ Existing scripts, controllers, and views are migration evidence for user journey
 
 ## Current Tactical Platform
 - CCCS923/Nutanix VPC is an intentional transitional platform and is not rejected as the current deployment target.
-- The current Exchange Hybrid capability on CCCS653 is a dependency context to understand, secure, and support during the tactical lifetime; the exact technical dependency path from UserAdmin/CCCS923 remains to be validated.
+- The current Exchange Hybrid capability on CCCS659 is a dependency context to understand, secure, and support during the tactical lifetime; the exact technical dependency path from UserAdmin/CCCS923 remains to be validated.
 - A replacement IIS VM should not automatically become the long-term successor; it would extend the transitional model without resolving the strategic identity direction.
 
 ## Strategic Direction and Rejected Long-Term Approaches
